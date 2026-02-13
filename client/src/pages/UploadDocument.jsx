@@ -1,63 +1,64 @@
 // src/components/UploadDocument.jsx
-import { useState, useRef, useEffect } from "react"; // ← added useRef
+
+import { useState, useRef, useEffect } from "react";
 import { toast } from "react-toastify";
-import { getFolders } from "../services/db";
+import {
+  addFolder,
+  getFolders,
+  addDocument,
+  bulkAddEncryptedChunks,
+} from "../services/db";
+import { useAuth } from "../context/AuthContext";
+import { chunkText, generateEmbeddings } from "../utils/ragUtils";
+import { encryptData } from "../services/CryptoServices";
+import * as pdfjsLib from "pdfjs-dist";
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker?url";
+
+// Local pdf.js worker (public/assets/pdf.worker.min.js)
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 export default function UploadDocument() {
+  const { vaultKey } = useAuth();
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [status, setStatus] = useState("Ready");
+  const [progress, setProgress] = useState(0);
+  const [embeddingLoading, setEmbeddingLoading] = useState(false);
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const fileInputRef = useRef(null);
-  const [folders, setFolders] = useState([]);
+  const [userFolders, setUserFolders] = useState([]);
 
-  //this useEffect will get all folders from the indexedb
   useEffect(() => {
-    const getAllFoldersFromDB = async () => {
-      const allFolders = await getFolders();
-      allFolders ? setFolders(allFolders) : [];
+    const getUserFolders = async () => {
+      let folders = await getFolders();
+      const hasRoot = folders.some((f) => f.folderName === "Root");
+      if (!hasRoot) {
+        await addFolder("Root");
+        folders = await getFolders();
+      }
+      setUserFolders(folders);
     };
-    getAllFoldersFromDB();
+    getUserFolders();
   }, []);
 
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
-    if (!file) {
-      toast.error("Please select a file");
-      return;
-    }
+    if (!file) return;
     if (!file.name.toLowerCase().endsWith(".pdf")) {
-      toast.warning("Only PDF files are supported at the moment.");
+      toast.warning("Only PDF files are supported.");
       return;
     }
     setSelectedFile(file);
-    return;
+    setError("");
   };
-  // const handleFileSelect = (e) => {
-  //   const file = e.target.files[0];
-  //   if (!file) {
-  //     setError("No file selected.");
-  //     return;
-  //   }
-  //   if (!file.name.toLowerCase().endsWith(".pdf")) {
-  //     setError("Only PDF files are supported at the moment.");
-  //     return;
-  //   }
-  //   setSelectedFile(file);
-  //   setError("");
-  // };
 
-  const handleCreateFolder = () => {
+  const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
-
-    const newFolder = {
-      id: Date.now(),
-      name: newFolderName.trim(),
-    };
-
-    setFolders([...folders, newFolder]);
+    const newFolder = await addFolder(newFolderName.trim());
+    setUserFolders([...userFolders, newFolder]);
     setSelectedFolder(newFolder);
     setNewFolderName("");
   };
@@ -72,40 +73,111 @@ export default function UploadDocument() {
 
   const handleUpload = async () => {
     if (!selectedFile) {
-      toast.error("Please select a document first.");
+      toast.error("Select a document first.");
+      return;
+    }
+
+    if (!vaultKey) {
+      toast.error("Vault key not loaded. Log in again.");
       return;
     }
 
     setLoading(true);
     setError("");
+    setStatus("Starting...");
+    setProgress(0);
 
     try {
-      // Placeholder for real processing (chunking, embedding, encryption, backend)
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Step 1: Extract text from PDF
+      setStatus("Extracting text from PDF...");
+      setProgress(10);
+      const pdf = await pdfjsLib.getDocument(URL.createObjectURL(selectedFile))
+        .promise;
+      let fullText = "";
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        fullText += content.items.map((item) => item.str).join(" ") + "\n\n";
+      }
 
-      // Success → toast + reset form completely
-      toast.success("Document uploaded and secured successfully!", {
-        autoClose: 6000,
-        position: "top-right",
+      // Step 2: Chunk text using YOUR function
+      setStatus("Chunking text...");
+      setProgress(20);
+      const chunks = chunkText(fullText);
+
+      // Step 3: Generate embeddings using YOUR function (with real setters)
+      setStatus("Loading embedding model...");
+      setProgress(30);
+      const embeddedChunks = await generateEmbeddings(
+        chunks,
+        setEmbeddingLoading,
+        setStatus,
+        setError,
+      );
+
+      if (embeddedChunks.length === 0) {
+        throw new Error("No embeddings generated");
+      }
+
+      // Step 4: Encrypt chunks using vaultKey
+      setStatus("Encrypting chunks...");
+      setProgress(50);
+      const encryptedChunks = [];
+      for (let i = 0; i < embeddedChunks.length; i++) {
+        const chunkText = embeddedChunks[i].text;
+        const { encrypted, iv } = await encryptData(
+          vaultKey,
+          new TextEncoder().encode(chunkText),
+        );
+
+        encryptedChunks.push({
+          chunkIdx: i,
+          encryptedText: encrypted,
+          iv: Array.from(iv),
+          embedding: embeddedChunks[i].embedding,
+        });
+      }
+
+      // Step 5: Save document metadata
+      setStatus("Saving document metadata...");
+      setProgress(70);
+      const docId = await addDocument({
+        fileName: selectedFile.name,
+        folderId: selectedFolder?.id || null,
+        fileSize: selectedFile.size,
+        uploadDate: new Date().toISOString(),
       });
 
-      // Critical fix: clear the actual file input element
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ""; // This clears the input so same file can be selected again
-      }
+      // Step 6: Bulk save encrypted chunks to DB
+      setStatus("Saving encrypted chunks...");
+      setProgress(85);
+      const chunksToSave = encryptedChunks.map((c) => ({
+        ...c,
+        documentId: docId,
+      }));
+      await bulkAddEncryptedChunks(chunksToSave);
+
+      // Success
+      setProgress(100);
+      setStatus("Upload complete!");
+      toast.success("Document processed, encrypted, and saved locally!", {
+        autoClose: 6000,
+      });
+
+      // Reset
+      if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err) {
       console.error("Upload failed:", err);
-      toast.error("Failed to process document. Please try again.", {
-        autoClose: 6000,
-        position: "top-right",
-      });
-      setError("Upload failed. Check console for details.");
+      toast.error(
+        "Failed to process document: " + (err.message || "Unknown error"),
+      );
+      setError("Upload failed. Check console.");
     } finally {
       setSelectedFile(null);
       setSelectedFolder(null);
       setNewFolderName("");
-      setError("");
       setLoading(false);
+      setProgress(0);
     }
   };
 
@@ -129,8 +201,7 @@ export default function UploadDocument() {
           <p className="text-lg text-gray-400 text-center mb-16 max-w-3xl mx-auto leading-relaxed">
             Securely add PDFs to your private vault.
             <br />
-            Processed locally • Encrypted before sending • Fully
-            offline-capable.
+            Processed locally • Encrypted before saving • Fully offline-capable.
           </p>
 
           {/* Upload Dropzone */}
@@ -139,10 +210,10 @@ export default function UploadDocument() {
           >
             <div
               className={`
-              w-full px-10 py-20 bg-black/40 border-2 border-dashed border-purple-900/40 
-              rounded-2xl text-center transition-all duration-300
-              group-hover:border-purple-700/60 group-hover:bg-black/50 group-hover:shadow-xl group-hover:shadow-purple-900/20
-            `}
+                w-full px-10 py-20 bg-black/40 border-2 border-dashed border-purple-900/40 
+                rounded-2xl text-center transition-all duration-300
+                group-hover:border-purple-700/60 group-hover:bg-black/50 group-hover:shadow-xl group-hover:shadow-purple-900/20
+              `}
             >
               <div className="text-8xl mb-8 text-purple-400 opacity-80 group-hover:opacity-100 transition-opacity">
                 📄
@@ -156,7 +227,7 @@ export default function UploadDocument() {
             </div>
 
             <input
-              ref={fileInputRef} // ← Added ref here
+              ref={fileInputRef}
               type="file"
               accept=".pdf"
               onChange={handleFileSelect}
@@ -181,7 +252,7 @@ export default function UploadDocument() {
               <div className="flex items-center justify-between gap-4">
                 <p className="text-lg text-gray-200">
                   <span className="font-medium text-purple-300">Folder:</span>{" "}
-                  {selectedFolder ? selectedFolder.name : "Root"}
+                  {selectedFolder ? selectedFolder.folderName : "Root"}
                 </p>
                 <div className="flex gap-5">
                   <button
@@ -197,7 +268,6 @@ export default function UploadDocument() {
                       setSelectedFolder(null);
                       setLoading(false);
                       setError("");
-                      setFolders(null); // ← THIS LINE IS THE BUG
                       if (fileInputRef.current) {
                         fileInputRef.current.value = "";
                       }
@@ -218,32 +288,25 @@ export default function UploadDocument() {
             </p>
           )}
 
+          {/* Progress + Status */}
           {loading && (
-            <div className="mt-6 flex items-center justify-center gap-3 text-amber-400 animate-pulse text-sm">
-              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  fill="none"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8v8h8a8 8 0 01-8 8 8 8 0 01-8-8z"
-                />
-              </svg>
-              Securely processing your document...
+            <div className="mt-6">
+              <div className="w-full bg-black/40 rounded-full h-2.5">
+                <div
+                  className="bg-gradient-to-r from-amber-600 via-purple-600 to-indigo-600 h-2.5 rounded-full transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                ></div>
+              </div>
+              <p className="text-center text-sm text-amber-400 mt-2">
+                {status} {progress}%
+              </p>
             </div>
           )}
 
           {/* Upload Button */}
           <button
             onClick={handleUpload}
-            disabled={!selectedFile || loading}
+            disabled={!selectedFile || loading || !vaultKey}
             className={`
               mt-10 w-full px-12 py-6 
               bg-gradient-to-r from-amber-700 via-purple-700 to-indigo-700 
@@ -277,7 +340,7 @@ export default function UploadDocument() {
           {/* Privacy note */}
           <p className="mt-8 text-sm text-gray-500 text-center">
             Your document stays private • Processed locally • Encrypted before
-            sending
+            saving
           </p>
         </div>
 
@@ -291,23 +354,11 @@ export default function UploadDocument() {
 
               {/* Flat Folder List */}
               <div className="max-h-[60vh] overflow-auto mb-8 space-y-3">
-                <button
-                  onClick={() => setSelectedFolder(null)}
-                  className={`
-                    w-full p-5 text-left rounded-xl transition-all duration-300
-                    ${!selectedFolder ? "bg-purple-900/30 border-purple-700/60" : "bg-black/40 border-purple-900/30 hover:bg-black/60 hover:border-purple-700/40"}
-                    border
-                  `}
-                >
-                  <p className="text-gray-200 font-medium">Root (Main Vault)</p>
-                </button>
-
-                {folders.length != 0 &&
-                  folders.map((folder) => (
-                    <button
-                      key={folder.id}
-                      onClick={() => handleSelectFolder(folder)}
-                      className={`
+                {userFolders.map((folder) => (
+                  <button
+                    key={folder.id}
+                    onClick={() => handleSelectFolder(folder)}
+                    className={`
                       w-full p-5 text-left rounded-xl transition-all duration-300
                       ${
                         selectedFolder?.id === folder.id
@@ -316,10 +367,12 @@ export default function UploadDocument() {
                       }
                       border
                     `}
-                    >
-                      <p className="text-gray-200 font-medium">{folder.name}</p>
-                    </button>
-                  ))}
+                  >
+                    <p className="text-gray-200 font-medium">
+                      {folder.folderName}
+                    </p>
+                  </button>
+                ))}
               </div>
 
               {/* Create New Folder */}

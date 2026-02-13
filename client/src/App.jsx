@@ -46,7 +46,7 @@ const App = () => {
           path="/upload"
           element={
             <ProtectedRoutes>
-              <UploadDocumentDemo />
+              <UploadDocument />
             </ProtectedRoutes>
           }
         />

@@ -1,9 +1,30 @@
 // src/components/UploadDocument.jsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
+import { addFolder, getFolders } from "../services/db";
 
 export default function UploadDocument() {
   const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFolder, setSelectedFolder] = useState("Root");
+  const [showSelectFolder, setShowSelectFolder] = useState(false);
+  const [userFolders, setUserFolders] = useState();
+  const [addNewFolder, setAddNewFolder] = useState(true);
+  const [newFolder, setNewFolder] = useState();
+
+  useEffect(() => {
+    const getUserFolders = async () => {
+      let folders = await getFolders();
+      const hasRoot = folders.some((f) => f.folderName == "Root");
+      if (!hasRoot) {
+        await addFolder("Root");
+        folders = await getFolders();
+        setUserFolders(folders);
+      } else setUserFolders(folders);
+
+      console.log(folders);
+    };
+    getUserFolders();
+  }, []);
 
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
@@ -66,13 +87,18 @@ export default function UploadDocument() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-300">Folder:</span>
-                <span className="font-medium">Root</span>
+                <span className="font-medium">{selectedFolder}</span>
               </div>
             </div>
 
             {/* Buttons */}
             <div className="flex gap-4">
-              <button className="flex-1 py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium">
+              <button
+                onClick={() => {
+                  setShowSelectFolder(true);
+                }}
+                className="flex-1 py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+              >
                 Select Folder
               </button>
 
@@ -83,6 +109,96 @@ export default function UploadDocument() {
                 className="flex-1 py-3 px-6 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium"
               >
                 Remove File
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showSelectFolder && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+            {/* Modal card */}
+            <div className="bg-gray-800 rounded-xl shadow-2xl border border-gray-700 w-full max-w-md p-6 m-4">
+              {/* Modal title */}
+              <h3 className="text-xl font-bold text-center mb-6 text-white">
+                Choose Folder
+              </h3>
+
+              {/* Folder list area */}
+              <div className="max-h-64 overflow-y-auto space-y-2 mb-6">
+                {/* Placeholder for folder items - you will map userFolders here */}
+                {userFolders.map((f) => {
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => {
+                        setSelectedFolder(f.folderName);
+                      }}
+                      className={`
+                              w-full p-4 text-left rounded-lg transition-colors font-medium
+                              ${
+                                selectedFolder === f.folderName
+                                  ? "bg-blue-700 text-white border-2 border-blue-500 shadow-md"
+                                  : "bg-gray-700 text-gray-200 hover:bg-gray-600 border border-gray-600"
+                              }
+                              `}
+                    >
+                      <span className="text-gray-200">{f.folderName}</span>
+                    </button>
+                  );
+                })}
+
+                {/* More buttons will come here when you map */}
+              </div>
+
+              {/* Buttons row */}
+              <div className="flex gap-4">
+                {/* New Folder button */}
+                <button
+                  onClick={() => {
+                    setAddNewFolder(true);
+                  }}
+                  className="flex-1 py-3 px-6 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium"
+                >
+                  New Folder
+                </button>
+
+                {/* Select Folder button (for current selection) */}
+                <button
+                  onClick={() => {
+                    setShowSelectFolder(false);
+                  }}
+                  className="flex-1 py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                >
+                  Select Folder
+                </button>
+              </div>
+
+              {/* New folder input - shown when New Folder clicked (placeholder) */}
+              {addNewFolder && (
+                <div className="mt-6 ">
+                  <input
+                    type="text"
+                    placeholder="Enter new folder name..."
+                    className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  />
+
+                  <div className="flex gap-4 mt-4">
+                    <button className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                      Create
+                    </button>
+                    <button className="flex-1 py-3 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Close modal button */}
+              <button
+                onClick={() => setShowSelectFolder(false)}
+                className="mt-6 w-full py-3 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>

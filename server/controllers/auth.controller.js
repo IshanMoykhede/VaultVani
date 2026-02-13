@@ -257,6 +257,7 @@ const verifyResetOtp = async (req, res) => {
     });
   }
 };
+
 const setNewPass = async (req, res) => {
   try {
     const { resetToken, password } = req.body;
@@ -336,6 +337,100 @@ const getUser = async (req, res) => {
     });
   }
 };
+
+// NEW CONTROLLER FUNCTION: cryptoSetup
+const cryptoSetup = async (req, res) => {
+  try {
+    const {
+      salt,
+      encryptedVaultKey,
+      iv,
+      recoverySalt,
+      encryptedVaultKeyWithRecovery,
+      recoveryIv,
+    } = req.body;
+
+    // req.id comes from your auth middleware (assuming it sets req.id)
+    const user = await userCollection.findById(req.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Update user with encrypted vault data
+    user.salt = salt;
+    user.encryptedVaultKey = encryptedVaultKey;
+    user.iv = iv;
+    user.recoverySalt = recoverySalt;
+    user.encryptedVaultKeyWithRecovery = encryptedVaultKeyWithRecovery;
+    user.recoveryIv = recoveryIv;
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Vault encryption setup completed",
+    });
+  } catch (error) {
+    console.error("Crypto setup error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to setup vault encryption",
+    });
+  }
+};
+// NEW FUNCTION: getSalt
+const getSalt = async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    const user = await userCollection.findById(userId);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    if (!user.salt) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Salt not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      salt: user.salt, // array of 16 numbers
+    });
+  } catch (error) {
+    console.error("Get salt error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+const getVaultKeyData = async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    const user = await userCollection.findById(userId);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      encryptedVaultKey: user.encryptedVaultKey,
+      iv: user.iv,
+      salt: user.salt,
+    });
+  } catch (error) {
+    console.error("Get vault key data error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 export {
   signUp,
   signIn,
@@ -344,4 +439,7 @@ export {
   verifyResetOtp,
   setNewPass,
   getUser,
+  cryptoSetup,
+  getSalt, // export the new function
+  getVaultKeyData,
 };
