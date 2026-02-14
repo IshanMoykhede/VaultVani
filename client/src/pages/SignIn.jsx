@@ -5,10 +5,9 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
-import { derivePBKDF2Key } from "../services/CryptoServices";
 
 function SignIn() {
-  const { setIsAuthenticated, setUser, unlockVaultKey } = useAuth();
+  const { setIsAuthenticated, setUser } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,18 +21,14 @@ function SignIn() {
         { email, password },
         { withCredentials: true },
       );
-
       toast.success(res.data.message);
       setUser(res.data.user);
       setIsAuthenticated(true);
 
-      // NEW: Unlock vault key after login
-      await unlockVaultKey(res.data.user._id);
-
       setTimeout(() => navigate("/dashboard"), 3000);
     } catch (error) {
       toast.error(error.response?.data?.message || "Something went wrong");
-      setTimeout(() => navigate("/"), 3000);
+      // setTimeout(() => navigate("/"), 3000);
     }
   };
 
@@ -45,7 +40,7 @@ function SignIn() {
         <div className="absolute bottom-[-40%] right-[-40%] w-[1400px] h-[1400px] bg-gradient-to-tl from-amber-900/4 via-purple-900/4 to-transparent rounded-full blur-[200px] opacity-40" />
       </div>
 
-      {/* Frosted glass container */}
+      {/* Frosted glass container – thick blur, soft tint, premium frost */}
       <div className="relative z-10 w-full max-w-md">
         <div
           className="
@@ -168,6 +163,7 @@ function SignIn() {
               </label>
             </div>
 
+            {/* Submit */}
             <button
               type="submit"
               className="
@@ -185,6 +181,7 @@ function SignIn() {
             </button>
           </form>
 
+          {/* Sign up link */}
           <p className="mt-8 text-center text-sm text-gray-500 relative z-10">
             Don't have an account?{" "}
             <Link

@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import axios from "axios";
-import { derivePBKDF2Key, decryptData } from "../services/CryptoServices"; // Assuming decryptData added
-import { toast } from "react-toastify";
+// import { derivePBKDF2Key, decryptData } from "../services/CryptoServices"; // Assuming decryptData added
+// import { toast } from "react-toastify";
 
 const AuthContext = createContext(null);
 
@@ -14,7 +14,7 @@ export const AuthProvider = ({ children }) => {
   const [vaultKey, setVaultKey] = useState(null);
 
   useEffect(() => {
-    const checkAuthAndUnlockVault = async () => {
+    const checkAuth = async () => {
       try {
         const res = await axios.get("http://localhost:8000/api/auth/get-user", {
           withCredentials: true,
@@ -25,7 +25,7 @@ export const AuthProvider = ({ children }) => {
           setIsAuthenticated(true);
 
           // NEW: Unlock vault key on load/reload
-          await unlockVaultKey(res.data.user._id);
+          // await unlockVaultKey(res.data.user._id);
         }
       } catch (error) {
         setUser(null);
@@ -35,69 +35,69 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
-    checkAuthAndUnlockVault();
+    checkAuth();
   }, []);
 
   // NEW: Function to unlock vault key (prompt password, fetch encrypted data, decrypt)
-  const unlockVaultKey = async (userId) => {
-    try {
-      const encryptedRes = await axios.get(
-        `http://localhost:8000/api/auth/vault-key/${userId}`,
-        {
-          withCredentials: true,
-        },
-      );
+  // const unlockVaultKey = async (userId) => {
+  //   try {
+  //     const encryptedRes = await axios.get(
+  //       `http://localhost:8000/api/auth/vault-key/${userId}`,
+  //       {
+  //         withCredentials: true,
+  //       },
+  //     );
 
-      const { encryptedVaultKey, iv, salt } = encryptedRes.data;
+  //     const { encryptedVaultKey, iv, salt } = encryptedRes.data;
 
-      if (!encryptedVaultKey || !iv || !salt) {
-        toast.error("Vault key data not found – contact support");
-        return;
-      }
+  //     if (!encryptedVaultKey || !iv || !salt) {
+  //       toast.error("Vault key data not found – contact support");
+  //       return;
+  //     }
 
-      // Prompt for password (UX can be improved to modal)
-      const password = prompt("Enter your password to unlock the vault");
-      if (!password) {
-        toast.warn("Vault unlock cancelled – some features disabled");
-        return;
-      }
+  //     // Prompt for password (UX can be improved to modal)
+  //     const password = prompt("Enter your password to unlock the vault");
+  //     if (!password) {
+  //       toast.warn("Vault unlock cancelled – some features disabled");
+  //       return;
+  //     }
 
-      // Derive PBKDF2 key from password + salt
-      const derivedKey = await derivePBKDF2Key(password, new Uint8Array(salt));
+  //     // Derive PBKDF2 key from password + salt
+  //     const derivedKey = await derivePBKDF2Key(password, new Uint8Array(salt));
 
-      // Decrypt Vault Key
-      const decryptedVaultKeyBytes = await decryptData(
-        derivedKey,
-        new Uint8Array(encryptedVaultKey),
-        new Uint8Array(iv),
-      );
+  //     // Decrypt Vault Key
+  //     const decryptedVaultKeyBytes = await decryptData(
+  //       derivedKey,
+  //       new Uint8Array(encryptedVaultKey),
+  //       new Uint8Array(iv),
+  //     );
 
-      // Import back as CryptoKey
-      const vaultKey = await crypto.subtle.importKey(
-        "raw",
-        decryptedVaultKeyBytes,
-        "AES-GCM",
-        false,
-        ["encrypt", "decrypt"],
-      );
+  //     // Import back as CryptoKey
+  //     const vaultKey = await crypto.subtle.importKey(
+  //       "raw",
+  //       decryptedVaultKeyBytes,
+  //       "AES-GCM",
+  //       false,
+  //       ["encrypt", "decrypt"],
+  //     );
 
-      setVaultKey(vaultKey);
-      toast.success("Vault unlocked successfully!");
-    } catch (err) {
-      console.error("Vault unlock failed:", err);
-      toast.error("Failed to unlock vault – check password or try again");
-    }
-  };
+  //     setVaultKey(vaultKey);
+  //     toast.success("Vault unlocked successfully!");
+  //   } catch (err) {
+  //     console.error("Vault unlock failed:", err);
+  //     toast.error("Failed to unlock vault – check password or try again");
+  //   }
+  // };
 
   // Set Vault Key after auth (for signup if needed)
-  const setVaultKeyAfterAuth = (key) => {
-    setVaultKey(key);
-  };
+  // const setVaultKeyAfterAuth = (key) => {
+  //   setVaultKey(key);
+  // };
 
   // Clear on logout
-  const clearVaultKey = () => {
-    setVaultKey(null);
-  };
+  // const clearVaultKey = () => {
+  //   setVaultKey(null);
+  // };
 
   return (
     <AuthContext.Provider
@@ -108,9 +108,7 @@ export const AuthProvider = ({ children }) => {
         setUser,
         setIsAuthenticated,
         vaultKey,
-        setVaultKeyAfterAuth,
-        clearVaultKey,
-        unlockVaultKey, // Expose if needed for manual unlock
+        setVaultKey,
       }}
     >
       {children}

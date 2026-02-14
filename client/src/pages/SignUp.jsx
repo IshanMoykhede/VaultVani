@@ -16,66 +16,74 @@ function SignUp() {
   const [password, setPassword] = useState("");
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [recoveryPhrase, setRecoveryPhrase] = useState("");
-  const { setIsAuthenticated, setUser, setVaultKeyAfterAuth } = useAuth();
+  const { setIsAuthenticated, setUser, setVaultKey } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     try {
-      // 1. Backend signup
+      // 1️⃣ Create account (backend only handles auth)
       const res = await axios.post(
-        "http://localhost:8000/api/auth/signUP",
+        "http://localhost:8000/api/auth/signUp",
         { userName, email, password },
         { withCredentials: true },
       );
 
       toast.success(res.data.message || "Account created!");
 
-      const userId = res.data.user?._id;
-      if (!userId) {
-        throw new Error("No user ID received from backend");
-      }
+      const user = res.data.user;
+      if (!user?._id) throw new Error("User ID missing");
 
-      // 2. Fetch salt from backend
-      const saltRes = await axios.get(
-        `http://localhost:8000/api/auth/salt/${userId}`,
-        { withCredentials: true },
+      // 2️⃣ Generate random Vault Key (AES-256)
+      const vaultKey = await crypto.subtle.generateKey(
+        { name: "AES-GCM", length: 256 },
+        true,
+        ["encrypt", "decrypt"],
       );
-      const salt = new Uint8Array(saltRes.data.salt);
 
-      // 3. Derive Vault Key from password + salt
-      const vaultKey = await derivePBKDF2Key(password, salt);
+      // Store vaultKey in context immediately (so user doesn’t need to re-unlock)
+      // setVaultKey(vaultKey);
 
-      // 4. Save Vault Key in AuthContext
-      setVaultKeyAfterAuth(vaultKey);
-
-      // 5. Generate Vault Key raw for encryption (only once)
+      // Export raw vault key for encryption
       const vaultKeyRaw = await crypto.subtle.exportKey("raw", vaultKey);
 
-      // 6. Password encryption of Vault Key (already derived, but for completeness)
-      // (you can skip if not needed, but keeping as per Phase 1)
+      // 3️⃣ Generate salt for PASSWORD encryption
+      const salt = crypto.getRandomValues(new Uint8Array(16));
 
-      // 7. Recovery phrase
-      const entropy = crypto.getRandomValues(new Uint8Array(16));
+      // 4️⃣ Derive password key using PBKDF2
+      const passwordDerivedKey = await derivePBKDF2Key(password, salt);
+
+      // 5️⃣ Encrypt vaultKey with password-derived key
+      const { encrypted: encryptedVaultKey, iv } = await encryptData(
+        passwordDerivedKey,
+        vaultKeyRaw,
+      );
+
+      // 6️⃣ Generate 12-word recovery phrase
+      const entropy = crypto.getRandomValues(new Uint8Array(16)); // 128-bit
       const recoveryPhraseGenerated = entropyToMnemonic(entropy, wordlist);
       setRecoveryPhrase(recoveryPhraseGenerated);
 
-      // 8. Recovery salt + encryption
+      // 7️⃣ Generate recovery salt
       const recoverySalt = crypto.getRandomValues(new Uint8Array(16));
+
+      // 8️⃣ Derive recovery key
       const recoveryDerivedKey = await derivePBKDF2Key(
         recoveryPhraseGenerated,
         recoverySalt,
       );
+
+      // 9️⃣ Encrypt vaultKey with recovery key
       const { encrypted: encryptedVaultKeyWithRecovery, iv: recoveryIv } =
         await encryptData(recoveryDerivedKey, vaultKeyRaw);
 
-      // 9. Send encrypted data to backend (Phase 1)
+      // 🔟 Send encrypted data to backend
       await axios.post(
         "http://localhost:8000/api/auth/crypto/setup",
         {
           salt: Array.from(salt),
-          encryptedVaultKey: Array.from(encryptedVaultKey || []), // if you have password encrypted too
-          iv: Array.from(iv || []),
+          encryptedVaultKey: Array.from(encryptedVaultKey),
+          iv: Array.from(iv),
           recoverySalt: Array.from(recoverySalt),
           encryptedVaultKeyWithRecovery: Array.from(
             encryptedVaultKeyWithRecovery,
@@ -85,18 +93,20 @@ function SignUp() {
         { withCredentials: true },
       );
 
-      // 10. Show recovery modal
-      setShowRecoveryModal(true);
-
-      // Reset form & auth
-      setUserName("");
-      setEmail("");
-      setPassword("");
+      // Auth state
+      setUser(user);
       setIsAuthenticated(true);
-      setUser(res.data.user);
+
+      // Clear sensitive password immediately
+      setPassword("");
+
+      // Show recovery modal
+      setShowRecoveryModal(true);
     } catch (error) {
       console.error("Signup error:", error);
-      toast.error(error.message || "Signup failed – check console");
+      toast.error(
+        error.response?.data?.message || error.message || "Signup failed",
+      );
     }
   };
 

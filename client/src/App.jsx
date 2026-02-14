@@ -13,6 +13,7 @@ import Dashboard from "./pages/Dashboard";
 import { useAuth } from "./context/AuthContext";
 import UploadDocument from "./pages/UploadDocument";
 import UploadDocumentDemo from "./pages/UploadDocumentDemo.jsx";
+import SecurityRouteForUploadDocument from "./components/SecurityRouteForUploadDocument.jsx";
 // import toast from "react-hot-toast";
 
 const App = () => {
@@ -45,9 +46,9 @@ const App = () => {
         <Route
           path="/upload"
           element={
-            <ProtectedRoutes>
+            <SecurityRouteForUploadDocument>
               <UploadDocument />
-            </ProtectedRoutes>
+            </SecurityRouteForUploadDocument>
           }
         />
       </Routes>
