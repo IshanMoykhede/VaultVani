@@ -13,6 +13,7 @@ import { chunkText, generateEmbeddings } from "../utils/ragUtils";
 import { encryptData } from "../services/CryptoServices";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker?url";
+import axios from "axios";
 
 // Local pdf.js worker (public/assets/pdf.worker.min.js)
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
@@ -28,20 +29,49 @@ export default function UploadDocument() {
   const [embeddingLoading, setEmbeddingLoading] = useState(false);
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+  const [newFolder, setNewFolder] = useState();
   const fileInputRef = useRef(null);
   const [userFolders, setUserFolders] = useState([]);
 
   useEffect(() => {
-    const getUserFolders = async () => {
-      let folders = await getFolders();
-      const hasRoot = folders.some((f) => f.folderName === "Root");
-      if (!hasRoot) {
-        await addFolder("Root");
-        folders = await getFolders();
-      }
-      setUserFolders(folders);
-    };
-    getUserFolders();
+    let folders = [];
+    try {
+      const verifyRoot = async () => {
+        let res = await axios.get(
+          "http://localhost:8000/api/folder/get-folders",
+          { withCredentials: true },
+        );
+
+        folders = res.data.folders;
+
+        const hasRoot = folders.some((item) => item.folderName == "Root");
+        if (!hasRoot) {
+          res = await axios.post(
+            "http://localhost:8000/api/folder/create-folder",
+            { folderName: "Root" },
+            { withCredentials: true },
+          );
+
+          const newFolderIdxDB = await addFolder(
+            res.data.folder._id,
+            res.data.folder.folderName,
+          );
+          //new folder called Root
+          setNewFolder(newFolderIdxDB);
+
+          setSelectedFolder(newFolderIdxDB);
+          setUserFolders((prev) => [...prev, newFolderIdxDB]);
+        } else {
+          const folders = await getFolders();
+          setUserFolders(folders);
+          console.log(folders);
+        }
+      };
+      verifyRoot();
+    } catch (error) {
+      console.log(error.response.data.message);
+      return;
+    }
   }, []);
 
   const handleFileSelect = (e) => {
@@ -57,10 +87,28 @@ export default function UploadDocument() {
 
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
-    const newFolder = await addFolder(newFolderName.trim());
-    setUserFolders([...userFolders, newFolder]);
-    setSelectedFolder(newFolder);
-    setNewFolderName("");
+    try {
+      const res = await axios.post(
+        "http://localhost:8000/api/folder/create-folder",
+        {
+          folderName: newFolderName.trim(),
+        },
+        { withCredentials: true },
+      );
+
+      const backendFolder = res.data.folder;
+
+      const newFolderIdxDB = await addFolder(
+        backendFolder._id, // important mapping
+        backendFolder.folderName,
+      );
+      setUserFolders((prev) => [...prev, newFolderIdxDB]);
+
+      setSelectedFolder(newFolderIdxDB);
+      setNewFolderName("");
+    } catch (error) {
+      toast.error(error.response.data.message);
+    }
   };
 
   const handleSelectFolder = (folder) => {
@@ -141,9 +189,51 @@ export default function UploadDocument() {
       // Step 5: Save document metadata
       setStatus("Saving document metadata...");
       setProgress(70);
+
+      // 🔐 Encrypt original PDF file before sending to backend
+      setStatus("Encrypting original file...");
+      setProgress(65);
+
+      // 1️⃣ Read file as ArrayBuffer
+      const fileBuffer = await selectedFile.arrayBuffer();
+
+      // 2️⃣ Encrypt file using vaultKey
+      const { encrypted: encryptedFileData, iv: fileIv } = await encryptData(
+        vaultKey,
+        new Uint8Array(fileBuffer),
+      );
+
+      // 3️⃣ Prepare FormData for backend
+      const formData = new FormData();
+
+      // Convert encrypted Uint8Array → Blob
+      const encryptedBlob = new Blob([encryptedFileData], {
+        type: "application/octet-stream",
+      });
+
+      formData.append("file", encryptedBlob);
+      formData.append("fileName", selectedFile.name);
+      formData.append("fileSize", selectedFile.size);
+      formData.append("mimeType", selectedFile.type);
+      formData.append("iv", JSON.stringify(Array.from(fileIv)));
+      formData.append("folderId", selectedFolder?.backendId || null); // ← backendId bhej (null/empty for Root)
+      console.log(selectedFolder.backendId);
+
+      // 4️⃣ Send encrypted file to backend
+      const uploadRes = await axios.post(
+        "http://localhost:8000/api/files/upload-encrypted-file",
+        formData,
+        {
+          withCredentials: true,
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
+
+      const backendFileId = uploadRes.data.documentId;
+
       const docId = await addDocument({
         fileName: selectedFile.name,
-        folderId: selectedFolder?.id || null,
+        folderId: selectedFolder?.backendId || null,
         fileSize: selectedFile.size,
         uploadDate: new Date().toISOString(),
       });

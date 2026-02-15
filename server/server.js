@@ -4,6 +4,10 @@ import connectDb from "./config/mongoDb.js";
 import authRouter from "./router/auth.router.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
+import multer from "multer";
+import fileRouter from "./router/files.router.js";
+import folderRouter from "./router/folder.router.js";
+
 dotenv.config();
 
 const app = express();
@@ -17,8 +21,11 @@ app.use(
     credentials: true, // 🔴 REQUIRED FOR COOKIES
   }),
 );
+app.use(express.urlencoded({ extended: false }));
 
 app.use("/api/auth", authRouter);
+app.use("/api/files", fileRouter);
+app.use("/api/folder", folderRouter);
 
 const PORT = process.env.PORT || 5000;
 

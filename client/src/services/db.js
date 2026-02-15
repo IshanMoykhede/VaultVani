@@ -3,7 +3,7 @@ import Dexie from "dexie";
 const db = new Dexie("VaultVaniDB");
 db.version(1).stores({
   models: "name, blobs, downloaded, version",
-  folders: "++id, folderName, createdAt",
+  folders: "++id, backendId, folderName, createdAt, fileStored", // ← ++id add kar diya
   documents:
     "++id, fileName, folderId, uploadDate, fileSize, mimeType, backendFileId",
   chunks: "++id, documentId, chunkIdx, encryptedText, iv, embedding",
@@ -31,12 +31,26 @@ export async function getModelBlobs(name) {
   return record ? record.blobs : [];
 }
 
-export async function addFolder(folderName) {
-  const createdAt = new Date().toISOString(); // better than toLocaleDateString
-  await db.folders.add({ folderName, createdAt });
-  return await db.folders.where("folderName").equals(folderName).first(); // return new folder
-}
+export async function addFolder(
+  backendId,
+  folderName,
+  createdAt = new Date().toISOString(),
+) {
+  const existing = await db.folders
+    .where("folderName")
+    .equals(folderName)
+    .first();
+  if (existing) return existing;
 
+  const localId = await db.folders.add({
+    backendId, // ← extra field for reference (not primary key)
+    folderName,
+    createdAt,
+    fileStored: [],
+  });
+
+  return await db.folders.get(localId);
+}
 // NEW: Add document metadata & return ID
 export async function addDocument(docData) {
   const id = await db.documents.add({
