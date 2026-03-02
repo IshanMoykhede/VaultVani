@@ -162,6 +162,7 @@ export async function retrieveTopChunks(
     setError("Please enter a question.");
     return;
   }
+  console.log(questionText);
 
   if (!embeddings || embeddings.length === 0) {
     setError("Embeddings not ready yet.");
@@ -194,7 +195,7 @@ export async function retrieveTopChunks(
         const score = cosineSimilarity(qEmbedding, item.embedding);
 
         return {
-          text: item.text,
+          id: item.id,
           score: isNaN(score) ? 0 : score,
         };
       })
@@ -213,6 +214,7 @@ export async function retrieveTopChunks(
     console.log("Top matches:", topMatches);
 
     setTopChunks(topMatches);
+    console.log("top chunks retrieved");
   } catch (err) {
     console.error("Retrieval failed:", err);
     setError("Search failed.");
@@ -228,6 +230,8 @@ export async function retrieveTopChunks(
  * @param {function} setAnswer
  * @param {function} setError
  */
+// src/utils/ragUtils.js (or wherever generateAnswer lives)
+
 export async function generateAnswer(
   question,
   topChunks,
@@ -248,25 +252,43 @@ export async function generateAnswer(
 
     const engine = await CreateMLCEngine("Llama-3.2-1B-Instruct-q4f16_1-MLC");
 
-    // Build prompt
-    const context = topChunks.map((c) => c.text).join("\n\n");
+    // ─────────────────────────────────────────────
+    // Optimized prompt for small local model (1B params)
+    // ─────────────────────────────────────────────
+    let context = topChunks.map((c) => c.text).join("\n\n");
 
-    const prompt = `You are a helpful assistant answering questions based only on the provided context. Be concise and accurate.
+    // Trim context if too long (prevents lag / overload on 1B model)
+    if (context.length > 4000) {
+      context = context.slice(0, 4000) + "\n... (truncated for brevity)";
+    }
 
-Context:
+    const systemPrompt = `You are a document assistant.
+
+Answer using ONLY the provided context.
+If the answer is not clearly found in the context, reply exactly:
+"I don't have enough information in the documents."
+
+Be concise and factual.
+No outside knowledge. No guessing.`;
+
+    const userPrompt = `Context:
 ${context}
 
-Question: ${question}
+Question:
+${question}
 
 Answer:`;
 
     setAnswer("Generating answer...");
 
     const reply = await engine.chat.completions.create({
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
-      max_tokens: 256,
-      stream: true, // optional: for streaming
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.2, // very low → almost deterministic, minimal hallucination
+      max_tokens: 256, // faster, enough for most answers
+      stream: true,
     });
 
     let fullAnswer = "";
@@ -274,13 +296,14 @@ Answer:`;
     for await (const chunk of reply) {
       const content = chunk.choices[0]?.delta?.content || "";
       fullAnswer += content;
-      setAnswer(fullAnswer); // stream answer word by word
+      setAnswer(fullAnswer.trim());
     }
 
-    setAnswer(fullAnswer || "No answer generated.");
+    const final = fullAnswer.trim();
+    setAnswer(final || "No answer generated.");
   } catch (err) {
     console.error("Generation failed:", err);
-    setError("Failed to generate answer: " + err.message);
+    setError("Failed to generate answer: " + (err.message || "Unknown error"));
     setAnswer("");
   } finally {
     setGenerating(false);

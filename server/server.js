@@ -17,10 +17,12 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(
   cors({
-    origin: "http://localhost:5173", // frontend URL
-    credentials: true, // 🔴 REQUIRED FOR COOKIES
+    origin: "http://localhost:5173",
+    credentials: true,
+    exposedHeaders: ["X-Encrypted-IV", "X-File-Name", "X-Mime-Type"],
   }),
 );
+
 app.use(express.urlencoded({ extended: false }));
 
 app.use("/api/auth", authRouter);

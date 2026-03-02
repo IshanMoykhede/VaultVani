@@ -70,3 +70,23 @@ export async function addEncryptedChunk(chunkData) {
 export async function bulkAddEncryptedChunks(chunksArray) {
   await db.chunks.bulkAdd(chunksArray);
 }
+
+export const getAllEncryptedChunks = async () => {
+  try {
+    const chunks = await db.chunks.toArray();
+    return chunks; // returns [{ id, documentId, chunkIdx, encryptedText, iv, embedding }, ...]
+  } catch (err) {
+    console.error("Failed to load chunks from Dexie:", err);
+    throw err;
+  }
+};
+
+// Optional: If later you want chunks only for specific documents
+export const getChunksByDocumentIds = async (documentIds) => {
+  try {
+    return await db.chunks.where("documentId").anyOf(documentIds).toArray();
+  } catch (err) {
+    console.error("Failed to load chunks for documents:", err);
+    throw err;
+  }
+};

@@ -15,7 +15,6 @@ import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker?url";
 import axios from "axios";
 
-// Local pdf.js worker (public/assets/pdf.worker.min.js)
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 export default function UploadDocument() {
@@ -24,27 +23,25 @@ export default function UploadDocument() {
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [status, setStatus] = useState("Ready");
+  const [status, setStatus] = useState("READY");
   const [progress, setProgress] = useState(0);
   const [embeddingLoading, setEmbeddingLoading] = useState(false);
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
-  const [newFolder, setNewFolder] = useState();
   const fileInputRef = useRef(null);
   const [userFolders, setUserFolders] = useState([]);
 
   useEffect(() => {
-    let folders = [];
-    try {
-      const verifyRoot = async () => {
+    const verifyRoot = async () => {
+      try {
         let res = await axios.get(
           "http://localhost:8000/api/folder/get-folders",
           { withCredentials: true },
         );
 
-        folders = res.data.folders;
+        let folders = res.data.folders;
 
-        const hasRoot = folders.some((item) => item.folderName == "Root");
+        const hasRoot = folders.some((item) => item.folderName === "Root");
         if (!hasRoot) {
           res = await axios.post(
             "http://localhost:8000/api/folder/create-folder",
@@ -56,29 +53,27 @@ export default function UploadDocument() {
             res.data.folder._id,
             res.data.folder.folderName,
           );
-          //new folder called Root
-          setNewFolder(newFolderIdxDB);
 
           setSelectedFolder(newFolderIdxDB);
           setUserFolders((prev) => [...prev, newFolderIdxDB]);
         } else {
-          const folders = await getFolders();
-          setUserFolders(folders);
-          console.log(folders);
+          const foldersFromDB = await getFolders();
+          setUserFolders(foldersFromDB);
+          setSelectedFolder(foldersFromDB.find((f) => f.folderName === "Root"));
         }
-      };
-      verifyRoot();
-    } catch (error) {
-      console.log(error.response.data.message);
-      return;
-    }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    verifyRoot();
   }, []);
 
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".pdf")) {
-      toast.warning("Only PDF files are supported.");
+      toast.warning("ONLY PDF FILES ALLOWED");
       return;
     }
     setSelectedFile(file);
@@ -90,24 +85,21 @@ export default function UploadDocument() {
     try {
       const res = await axios.post(
         "http://localhost:8000/api/folder/create-folder",
-        {
-          folderName: newFolderName.trim(),
-        },
+        { folderName: newFolderName.trim() },
         { withCredentials: true },
       );
 
       const backendFolder = res.data.folder;
-
       const newFolderIdxDB = await addFolder(
-        backendFolder._id, // important mapping
+        backendFolder._id,
         backendFolder.folderName,
       );
-      setUserFolders((prev) => [...prev, newFolderIdxDB]);
 
+      setUserFolders((prev) => [...prev, newFolderIdxDB]);
       setSelectedFolder(newFolderIdxDB);
       setNewFolderName("");
     } catch (error) {
-      toast.error(error.response.data.message);
+      toast.error(error.response?.data?.message || "FOLDER CREATION FAILED");
     }
   };
 
@@ -121,24 +113,28 @@ export default function UploadDocument() {
 
   const handleUpload = async () => {
     if (!selectedFile) {
-      toast.error("Select a document first.");
+      toast.error("SELECT A DOCUMENT FIRST");
       return;
     }
 
     if (!vaultKey) {
-      toast.error("Vault key not loaded. Log in again.");
+      toast.error("VAULT KEY MISSING – RE-LOGIN");
       return;
     }
 
     setLoading(true);
     setError("");
-    setStatus("Starting...");
+    setStatus("STARTING...");
     setProgress(0);
 
     try {
-      // Step 1: Extract text from PDF
-      setStatus("Extracting text from PDF...");
+      // ─────────────────────────────────────────────
+      // PDF text extraction → chunking → embedding → encryption
+      // ─────────────────────────────────────────────
+
+      setStatus("EXTRACTING TEXT...");
       setProgress(10);
+
       const pdf = await pdfjsLib.getDocument(URL.createObjectURL(selectedFile))
         .promise;
       let fullText = "";
@@ -148,13 +144,11 @@ export default function UploadDocument() {
         fullText += content.items.map((item) => item.str).join(" ") + "\n\n";
       }
 
-      // Step 2: Chunk text using YOUR function
-      setStatus("Chunking text...");
+      setStatus("CHUNKING...");
       setProgress(20);
       const chunks = chunkText(fullText);
 
-      // Step 3: Generate embeddings using YOUR function (with real setters)
-      setStatus("Loading embedding model...");
+      setStatus("GENERATING EMBEDDINGS...");
       setProgress(30);
       const embeddedChunks = await generateEmbeddings(
         chunks,
@@ -164,11 +158,10 @@ export default function UploadDocument() {
       );
 
       if (embeddedChunks.length === 0) {
-        throw new Error("No embeddings generated");
+        throw new Error("NO EMBEDDINGS GENERATED");
       }
 
-      // Step 4: Encrypt chunks using vaultKey
-      setStatus("Encrypting chunks...");
+      setStatus("ENCRYPTING CHUNKS...");
       setProgress(50);
       const encryptedChunks = [];
       for (let i = 0; i < embeddedChunks.length; i++) {
@@ -186,27 +179,16 @@ export default function UploadDocument() {
         });
       }
 
-      // Step 5: Save document metadata
-      setStatus("Saving document metadata...");
-      setProgress(70);
-
-      // 🔐 Encrypt original PDF file before sending to backend
-      setStatus("Encrypting original file...");
+      // Encrypt original file
+      setStatus("ENCRYPTING ORIGINAL FILE...");
       setProgress(65);
-
-      // 1️⃣ Read file as ArrayBuffer
       const fileBuffer = await selectedFile.arrayBuffer();
-
-      // 2️⃣ Encrypt file using vaultKey
       const { encrypted: encryptedFileData, iv: fileIv } = await encryptData(
         vaultKey,
         new Uint8Array(fileBuffer),
       );
 
-      // 3️⃣ Prepare FormData for backend
       const formData = new FormData();
-
-      // Convert encrypted Uint8Array → Blob
       const encryptedBlob = new Blob([encryptedFileData], {
         type: "application/octet-stream",
       });
@@ -216,10 +198,10 @@ export default function UploadDocument() {
       formData.append("fileSize", selectedFile.size);
       formData.append("mimeType", selectedFile.type);
       formData.append("iv", JSON.stringify(Array.from(fileIv)));
-      formData.append("folderId", selectedFolder?.backendId || null); // ← backendId bhej (null/empty for Root)
-      console.log(selectedFolder.backendId);
+      formData.append("folderId", selectedFolder?.backendId || null);
 
-      // 4️⃣ Send encrypted file to backend
+      setStatus("UPLOADING TO SERVER...");
+      setProgress(75);
       const uploadRes = await axios.post(
         "http://localhost:8000/api/files/upload-encrypted-file",
         formData,
@@ -231,6 +213,8 @@ export default function UploadDocument() {
 
       const backendFileId = uploadRes.data.documentId;
 
+      setStatus("SAVING METADATA...");
+      setProgress(85);
       const docId = await addDocument({
         fileName: selectedFile.name,
         folderId: selectedFolder?.backendId || null,
@@ -238,270 +222,251 @@ export default function UploadDocument() {
         uploadDate: new Date().toISOString(),
       });
 
-      // Step 6: Bulk save encrypted chunks to DB
-      setStatus("Saving encrypted chunks...");
-      setProgress(85);
+      setStatus("SAVING ENCRYPTED CHUNKS...");
+      setProgress(90);
       const chunksToSave = encryptedChunks.map((c) => ({
         ...c,
         documentId: docId,
       }));
       await bulkAddEncryptedChunks(chunksToSave);
 
-      // Success
       setProgress(100);
-      setStatus("Upload complete!");
-      toast.success("Document processed, encrypted, and saved locally!", {
-        autoClose: 6000,
-      });
+      setStatus("UPLOAD COMPLETE");
+      toast.success("DOCUMENT SECURED & SAVED", { autoClose: 5000 });
 
-      // Reset
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err) {
-      console.error("Upload failed:", err);
-      toast.error(
-        "Failed to process document: " + (err.message || "Unknown error"),
-      );
-      setError("Upload failed. Check console.");
+      console.error(err);
+      toast.error("UPLOAD FAILED – CHECK CONSOLE");
+      setError("UPLOAD FAILED");
     } finally {
       setSelectedFile(null);
-      setSelectedFolder(null);
-      setNewFolderName("");
       setLoading(false);
       setProgress(0);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-gray-100 font-sans antialiased relative overflow-x-hidden">
-      {/* Background gradient */}
-      <div className="fixed inset-0 bg-gradient-to-br from-[#0a0a0f] via-[#0f0b12] to-[#0a0a0f] pointer-events-none" />
-
-      {/* Glows */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute top-[-50%] left-[-30%] w-[1400px] h-[1400px] bg-gradient-to-br from-purple-900/6 via-indigo-900/5 to-transparent rounded-full blur-[180px] opacity-60" />
-        <div className="absolute bottom-[-40%] right-[-40%] w-[1600px] h-[1600px] bg-gradient-to-tl from-amber-900/5 via-purple-900/4 to-transparent rounded-full blur-[200px] opacity-50" />
-      </div>
-
-      <div className="relative z-10 pt-32 pb-20 px-6 max-w-5xl mx-auto">
-        <div className="backdrop-blur-3xl bg-black/35 border border-purple-900/20 rounded-3xl p-10 md:p-12 shadow-2xl shadow-black/60">
-          <h2 className="text-4xl md:text-5xl font-medium text-center mb-12 bg-gradient-to-r from-amber-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">
-            Upload Document
+    <div className="min-h-screen bg-white text-black font-mono">
+      <div className="pt-32 pb-20 px-6 md:px-12 lg:px-24 max-w-6xl mx-auto">
+        <div className="border-4 border-black shadow-[16px_16px_0px_#000] bg-white p-10 md:p-14">
+          <h2 className="text-6xl md:text-8xl font-black uppercase tracking-tighter leading-none mb-12 text-center border-b-8 border-yellow-400 pb-6">
+            UPLOAD
+            <br />
+            DOCUMENT
           </h2>
 
-          <p className="text-lg text-gray-400 text-center mb-16 max-w-3xl mx-auto leading-relaxed">
-            Securely add PDFs to your private vault.
-            <br />
-            Processed locally • Encrypted before saving • Fully offline-capable.
+          <p className="text-2xl md:text-3xl font-bold text-center mb-16 uppercase tracking-widest">
+            PDF ONLY • LOCAL ENCRYPTION • NO LEAKS
           </p>
 
-          {/* Upload Dropzone */}
-          <label
-            className={`block cursor-pointer group ${!selectedFile ? "" : "hidden"}`}
-          >
-            <div
-              className={`
-                w-full px-10 py-20 bg-black/40 border-2 border-dashed border-purple-900/40 
-                rounded-2xl text-center transition-all duration-300
-                group-hover:border-purple-700/60 group-hover:bg-black/50 group-hover:shadow-xl group-hover:shadow-purple-900/20
-              `}
-            >
-              <div className="text-8xl mb-8 text-purple-400 opacity-80 group-hover:opacity-100 transition-opacity">
-                📄
+          {/* Dropzone / File select */}
+          {!selectedFile ? (
+            <label className="block cursor-pointer">
+              <div className="border-4 border-dashed border-black p-16 md:p-24 text-center hover:bg-yellow-100 transition-colors">
+                <div className="text-8xl mb-6">📄</div>
+                <p className="text-4xl font-black uppercase mb-4">
+                  DROP PDF HERE
+                  <br />
+                  OR CLICK TO SELECT
+                </p>
+                <p className="text-2xl font-bold">MAX 20MB RECOMMENDED</p>
               </div>
-              <p className="text-2xl font-medium text-gray-200 group-hover:text-purple-300 transition-colors">
-                Drop your PDF here or click to browse
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf"
+                onChange={handleFileSelect}
+                disabled={loading}
+                className="hidden"
+              />
+            </label>
+          ) : (
+            <div className="border-4 border-black p-10 mb-10">
+              <div className="text-3xl font-black mb-6">SELECTED FILE</div>
+              <p className="text-2xl font-bold mb-2">{selectedFile.name}</p>
+              <p className="text-xl mb-6">
+                SIZE: {Math.round(selectedFile.size / 1024)} KB • PDF
               </p>
-              <p className="mt-4 text-sm text-gray-500">
-                Supported: PDF • Recommended size under 20 MB
-              </p>
-            </div>
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf"
-              onChange={handleFileSelect}
-              disabled={loading}
-              className="hidden"
-            />
-          </label>
+              <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center justify-between">
+                <div className="text-2xl font-bold">
+                  FOLDER:{" "}
+                  <span className="text-yellow-600">
+                    {selectedFolder ? selectedFolder.folderName : "ROOT"}
+                  </span>
+                </div>
 
-          {/* Selected File & Folder Info */}
-          {selectedFile && (
-            <div className="mt-8 p-6 bg-black/50 border border-purple-900/30 rounded-2xl space-y-4">
-              <div>
-                <p className="text-lg text-gray-200">
-                  <span className="font-medium text-purple-300">Document:</span>{" "}
-                  {selectedFile.name}
-                </p>
-                <p className="text-sm text-gray-500 mt-1">
-                  Size: {Math.round(selectedFile.size / 1024)} KB • PDF
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between gap-4">
-                <p className="text-lg text-gray-200">
-                  <span className="font-medium text-purple-300">Folder:</span>{" "}
-                  {selectedFolder ? selectedFolder.folderName : "Root"}
-                </p>
-                <div className="flex gap-5">
+                <div className="flex flex-wrap gap-4">
                   <button
                     onClick={() => setShowFolderModal(true)}
                     disabled={loading}
-                    className="px-6 py-3 bg-gradient-to-r from-amber-700 via-purple-700 to-indigo-700 hover:from-amber-600 hover:via-purple-600 hover:to-indigo-600 text-white text-sm font-medium rounded-full transition-all duration-300 shadow-sm hover:shadow-md disabled:opacity-50"
+                    className="
+                      px-10 py-5 text-2xl font-black uppercase
+                      bg-yellow-400 border-4 border-black
+                      shadow-[8px_8px_0_#000] hover:shadow-[12px_12px_0_#000]
+                      hover:bg-black hover:text-yellow-400 transition-all
+                      disabled:opacity-50
+                    "
                   >
-                    Select Folder
+                    CHOOSE FOLDER
                   </button>
+
                   <button
                     onClick={() => {
                       setSelectedFile(null);
-                      setSelectedFolder(null);
-                      setLoading(false);
-                      setError("");
-                      if (fileInputRef.current) {
-                        fileInputRef.current.value = "";
-                      }
+                      if (fileInputRef.current) fileInputRef.current.value = "";
                     }}
-                    className="px-6 py-3 bg-gradient-to-r from-amber-700 via-purple-700 to-indigo-700 hover:from-amber-600 hover:via-purple-600 hover:to-indigo-600 text-white text-sm font-medium rounded-full transition-all duration-300 shadow-sm hover:shadow-md disabled:opacity-50"
+                    disabled={loading}
+                    className="
+                      px-10 py-5 text-2xl font-black uppercase
+                      bg-red-500 text-white border-4 border-black
+                      shadow-[8px_8px_0_#000] hover:shadow-[12px_12px_0_#000]
+                      hover:bg-black transition-all disabled:opacity-50
+                    "
                   >
-                    Remove file
+                    REMOVE
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Messages */}
+          {/* Status & Progress */}
           {error && (
-            <p className="mt-6 text-red-400 text-center text-sm bg-red-900/20 p-4 rounded-xl border border-red-900/30">
-              {error}
-            </p>
+            <div className="border-4 border-red-600 bg-red-100 p-8 mb-8 text-center">
+              <p className="text-3xl font-black uppercase text-red-700 mb-4">
+                ERROR
+              </p>
+              <p className="text-2xl font-bold">{error}</p>
+            </div>
           )}
 
-          {/* Progress + Status */}
           {loading && (
-            <div className="mt-6">
-              <div className="w-full bg-black/40 rounded-full h-2.5">
-                <div
-                  className="bg-gradient-to-r from-amber-600 via-purple-600 to-indigo-600 h-2.5 rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                ></div>
+            <div className="border-4 border-black p-8 mb-8">
+              <div className="text-4xl font-black uppercase mb-6 text-center">
+                {status}
               </div>
-              <p className="text-center text-sm text-amber-400 mt-2">
-                {status} {progress}%
+              <div className="w-full bg-gray-300 h-8 relative">
+                <div
+                  className="bg-yellow-400 h-full transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <p className="text-2xl font-bold text-center mt-4">
+                {progress}% COMPLETE
               </p>
             </div>
           )}
 
-          {/* Upload Button */}
+          {/* Main Upload Button */}
           <button
             onClick={handleUpload}
             disabled={!selectedFile || loading || !vaultKey}
             className={`
-              mt-10 w-full px-12 py-6 
-              bg-gradient-to-r from-amber-700 via-purple-700 to-indigo-700 
-              hover:from-amber-600 hover:via-purple-600 hover:to-indigo-600 
-              text-white font-medium text-lg rounded-full transition-all duration-300 
-              shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed
-              flex items-center justify-center gap-3
+              w-full py-8 text-4xl font-black uppercase
+              bg-black text-white border-4 border-black
+              shadow-[12px_12px_0_#000] hover:shadow-[16px_16px_0_#000]
+              hover:bg-yellow-400 hover:text-black transition-all
+              disabled:opacity-40 disabled:cursor-not-allowed
+              flex items-center justify-center gap-6
             `}
           >
-            <span>Secure & Upload to Vault</span>
-            {loading && (
-              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  fill="none"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8v8h8a8 8 0 01-8 8 8 8 0 01-8-8z"
-                />
-              </svg>
-            )}
+            <span>SECURE UPLOAD</span>
+            {loading && <span className="text-5xl">⚡</span>}
           </button>
 
-          {/* Privacy note */}
-          <p className="mt-8 text-sm text-gray-500 text-center">
-            Your document stays private • Processed locally • Encrypted before
-            saving
+          <p className="mt-12 text-xl font-bold text-center uppercase tracking-widest">
+            YOUR FILE NEVER LEAVES ENCRYPTED
           </p>
         </div>
 
-        {/* Folder Selection Modal */}
+        {/* Folder Modal – brutal style */}
         {showFolderModal && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-            <div className="backdrop-blur-3xl bg-black/50 border border-purple-900/30 rounded-3xl p-10 max-w-lg w-full mx-4 shadow-2xl shadow-purple-900/20">
-              <h3 className="text-2xl font-medium mb-8 bg-gradient-to-r from-amber-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">
-                Choose Folder
+          <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-6">
+            <div className="bg-white border-4 border-black shadow-[16px_16px_0_#000] p-10 md:p-14 max-w-2xl w-full">
+              <h3 className="text-6xl font-black uppercase tracking-tighter mb-10 text-center border-b-8 border-yellow-400 pb-6">
+                SELECT FOLDER
               </h3>
 
-              {/* Flat Folder List */}
-              <div className="max-h-[60vh] overflow-auto mb-8 space-y-3">
+              <div className="max-h-[50vh] overflow-auto mb-10 space-y-4">
                 {userFolders.map((folder) => (
                   <button
                     key={folder.id}
                     onClick={() => handleSelectFolder(folder)}
                     className={`
-                      w-full p-5 text-left rounded-xl transition-all duration-300
+                      w-full p-6 text-left text-2xl font-black uppercase
+                      border-4 border-black
                       ${
                         selectedFolder?.id === folder.id
-                          ? "bg-purple-900/30 border-purple-700/60"
-                          : "bg-black/40 border-purple-900/30 hover:bg-black/60 hover:border-purple-700/40"
+                          ? "bg-yellow-400 shadow-[8px_8px_0_#000]"
+                          : "hover:bg-yellow-200"
                       }
-                      border
+                      transition-all
                     `}
                   >
-                    <p className="text-gray-200 font-medium">
-                      {folder.folderName}
-                    </p>
+                    {folder.folderName}
                   </button>
                 ))}
               </div>
 
-              {/* Create New Folder */}
-              <div className="mb-8">
+              {/* New folder input */}
+              <div className="mb-10">
                 <input
                   type="text"
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
-                  placeholder="New folder name..."
-                  className="w-full px-6 py-4 bg-black/50 border border-purple-900/40 rounded-xl text-gray-200 placeholder-gray-500 focus:border-purple-700/60 transition-all"
+                  placeholder="NEW FOLDER NAME"
+                  className="
+                    w-full px-6 py-5 text-2xl font-bold
+                    border-4 border-black
+                    shadow-[6px_6px_0_#000] focus:shadow-[10px_10px_0_#000]
+                    focus:outline-none transition-all
+                  "
                 />
                 <button
                   onClick={handleCreateFolder}
                   disabled={!newFolderName.trim()}
-                  className="mt-4 px-8 py-3 bg-gradient-to-r from-amber-700 via-purple-700 to-indigo-700 hover:from-amber-600 hover:via-purple-600 hover:to-indigo-600 text-white text-sm font-medium rounded-full transition-all disabled:opacity-50"
+                  className="
+                    mt-6 w-full py-5 text-2xl font-black uppercase
+                    bg-yellow-400 border-4 border-black
+                    shadow-[8px_8px_0_#000] hover:shadow-[12px_12px_0_#000]
+                    hover:bg-black hover:text-yellow-400 transition-all
+                    disabled:opacity-50
+                  "
                 >
-                  Create & Select
+                  CREATE & SELECT
                 </button>
               </div>
 
-              {/* Modal Buttons */}
-              <div className="flex justify-end gap-4">
+              <div className="flex justify-end gap-6">
                 <button
                   onClick={() => setShowFolderModal(false)}
-                  className="px-8 py-3 text-gray-400 hover:text-purple-300 transition-colors"
+                  className="text-2xl font-black uppercase hover:text-yellow-600"
                 >
-                  Cancel
+                  CANCEL
                 </button>
                 <button
                   onClick={handleConfirmFolder}
-                  className="px-8 py-3 bg-gradient-to-r from-amber-700 via-purple-700 to-indigo-700 hover:from-amber-600 hover:via-purple-600 hover:to-indigo-600 text-white font-medium rounded-full transition-all"
+                  className="
+                    px-10 py-5 text-2xl font-black uppercase
+                    bg-black text-white border-4 border-black
+                    shadow-[8px_8px_0_#000] hover:shadow-[12px_12px_0_#000]
+                    hover:bg-yellow-400 hover:text-black transition-all
+                  "
                 >
-                  Done
+                  DONE
                 </button>
               </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* Footer strip */}
+      <footer className="fixed bottom-0 left-0 right-0 border-t-4 border-black bg-white py-4 text-center text-xl font-bold uppercase">
+        VaultVani — Documents Locked Down • No Compromise
+      </footer>
     </div>
   );
 }

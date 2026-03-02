@@ -7,13 +7,16 @@ import { ToastContainer } from "react-toastify";
 import ForgotPassword from "./pages/ForgotPassword";
 import VerifyOTP from "./pages/VerifyOtp";
 import ResetPassword from "./pages/ResetPassword";
-import PDFTest from "./pages/PdfTest";
+// import PDFTest from "./pages/PdfTest";
 import ProtectedRoutes from "./components/ProtectedRoutes";
 import Dashboard from "./pages/Dashboard";
 import { useAuth } from "./context/AuthContext";
 import UploadDocument from "./pages/UploadDocument";
 import UploadDocumentDemo from "./pages/UploadDocumentDemo.jsx";
 import SecurityRouteForUploadDocument from "./components/SecurityRouteForUploadDocument.jsx";
+import RAGDemo from "./pages/RagDemo.jsx";
+// import BrowseDocuments from "./pages/BrowseDocuments.jsx";
+// import AIAssistant from "./pages/AIAssistant.jsx";
 // import toast from "react-hot-toast";
 
 const App = () => {
@@ -38,9 +41,9 @@ const App = () => {
         <Route
           path="/ai-assistant"
           element={
-            <ProtectedRoutes>
-              <PDFTest />
-            </ProtectedRoutes>
+            <SecurityRouteForUploadDocument>
+              <RAGDemo />
+            </SecurityRouteForUploadDocument>
           }
         />
         <Route

@@ -28,60 +28,41 @@ function SignIn() {
       setTimeout(() => navigate("/dashboard"), 3000);
     } catch (error) {
       toast.error(error.response?.data?.message || "Something went wrong");
-      // setTimeout(() => navigate("/"), 3000);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-gray-100 flex items-center justify-center px-6 py-12 relative overflow-hidden">
-      {/* Ambient glow background */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute top-[-40%] left-[-30%] w-[1200px] h-[1200px] bg-gradient-to-br from-purple-900/5 via-indigo-900/5 to-transparent rounded-full blur-[180px] opacity-50" />
-        <div className="absolute bottom-[-40%] right-[-40%] w-[1400px] h-[1400px] bg-gradient-to-tl from-amber-900/4 via-purple-900/4 to-transparent rounded-full blur-[200px] opacity-40" />
-      </div>
-
-      {/* Frosted glass container – thick blur, soft tint, premium frost */}
-      <div className="relative z-10 w-full max-w-md">
+    <div className="min-h-screen bg-white text-black font-mono">
+      {/* Brutal centered form container */}
+      <div className="min-h-screen flex items-center justify-center px-6 py-12">
         <div
           className="
-            backdrop-blur-3xl 
-            bg-white/[0.06] 
-            border border-white/[0.08] 
-            rounded-3xl 
-            p-10 md:p-12 
-            shadow-2xl 
-            shadow-black/70 
-            ring-1 
-            ring-inset 
-            ring-purple-900/15 
-            transition-all 
-            duration-300 
-            hover:ring-purple-700/25 
-            hover:shadow-purple-900/10
+            w-full max-w-lg 
+            bg-white 
+            border-4 border-black 
+            shadow-[16px_16px_0px_#000] 
+            p-10 md:p-14
           "
         >
-          {/* Inner soft radial frost glow */}
-          <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-amber-500/2 via-purple-500/2 to-indigo-500/2 pointer-events-none" />
-
-          {/* Title */}
-          <div className="text-center mb-10 relative z-10">
-            <h1 className="text-3xl font-medium tracking-tight bg-gradient-to-r from-amber-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">
-              VaultVani
+          {/* Header */}
+          <div className="text-center mb-12">
+            <h1 className="text-6xl md:text-7xl font-black uppercase tracking-tighter leading-none mb-4">
+              Vault<span className="text-yellow-400">Vani</span>
             </h1>
-            <p className="text-gray-400 mt-2 text-sm">
-              Sign in to your secure vault
+            <p className="text-2xl font-bold uppercase tracking-widest">
+              SIGN IN
             </p>
           </div>
 
           {/* Form */}
-          <form className="space-y-6 relative z-10" onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="space-y-10">
             {/* Email */}
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm font-medium text-gray-300 mb-2"
+                className="block text-2xl font-black uppercase mb-3"
               >
-                Email address
+                Email
               </label>
               <input
                 id="email"
@@ -89,39 +70,34 @@ function SignIn() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="
-                  w-full px-5 py-3.5 
-                  bg-black/25 
-                  border border-white/10 
-                  rounded-xl 
-                  text-white 
-                  placeholder-gray-500 
+                  w-full px-6 py-5 
+                  text-xl font-bold 
+                  bg-white 
+                  border-4 border-black 
+                  shadow-[8px_8px_0px_#000] 
+                  focus:shadow-[12px_12px_0px_#000] 
                   focus:outline-none 
-                  focus:border-purple-500/40 
-                  focus:ring-2 
-                  focus:ring-purple-500/20 
-                  focus:bg-black/35 
-                  transition-all duration-300 
-                  backdrop-blur-sm
+                  transition-all
                 "
-                placeholder="you@example.com"
+                placeholder="YOU@EXAMPLE.COM"
                 required
               />
             </div>
 
             {/* Password */}
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-3">
                 <label
                   htmlFor="password"
-                  className="block text-sm font-medium text-gray-300"
+                  className="block text-2xl font-black uppercase"
                 >
                   Password
                 </label>
                 <Link
                   to="/forgot-password"
-                  className="text-sm text-purple-400 hover:text-purple-300 transition"
+                  className="text-xl font-black uppercase text-red-600 hover:text-red-700"
                 >
-                  Forgot password?
+                  Forgot?
                 </Link>
               </div>
               <input
@@ -130,19 +106,14 @@ function SignIn() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="
-                  w-full px-5 py-3.5 
-                  bg-black/25 
-                  border border-white/10 
-                  rounded-xl 
-                  text-white 
-                  placeholder-gray-500 
+                  w-full px-6 py-5 
+                  text-xl font-bold 
+                  bg-white 
+                  border-4 border-black 
+                  shadow-[8px_8px_0px_#000] 
+                  focus:shadow-[12px_12px_0px_#000] 
                   focus:outline-none 
-                  focus:border-purple-500/40 
-                  focus:ring-2 
-                  focus:ring-purple-500/20 
-                  focus:bg-black/35 
-                  transition-all duration-300 
-                  backdrop-blur-sm
+                  transition-all
                 "
                 placeholder="••••••••"
                 required
@@ -150,15 +121,21 @@ function SignIn() {
             </div>
 
             {/* Remember me */}
-            <div className="flex items-center">
+            <div className="flex items-center gap-4">
               <input
                 id="remember"
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-700 bg-black/40 text-purple-600 focus:ring-purple-500/30"
+                className="
+                  h-8 w-8 
+                  border-4 border-black 
+                  bg-white 
+                  text-yellow-400 
+                  focus:ring-0
+                "
               />
-              <label htmlFor="remember" className="ml-3 text-sm text-gray-400">
+              <label htmlFor="remember" className="text-xl font-bold uppercase">
                 Remember me
               </label>
             </div>
@@ -167,14 +144,15 @@ function SignIn() {
             <button
               type="submit"
               className="
-                w-full py-4 
-                bg-gradient-to-r from-amber-700 via-purple-700 to-indigo-700 
-                hover:from-amber-600 hover:via-purple-600 hover:to-indigo-600 
-                text-white font-medium 
-                rounded-xl 
-                transition duration-300 
-                shadow-md hover:shadow-lg 
-                backdrop-blur-md
+                w-full py-6 
+                text-3xl font-black uppercase 
+                bg-yellow-400 
+                border-4 border-black 
+                shadow-[12px_12px_0px_#000] 
+                hover:shadow-[16px_16px_0px_#000] 
+                hover:bg-black 
+                hover:text-yellow-400 
+                transition-all
               "
             >
               Sign In
@@ -182,17 +160,22 @@ function SignIn() {
           </form>
 
           {/* Sign up link */}
-          <p className="mt-8 text-center text-sm text-gray-500 relative z-10">
-            Don't have an account?{" "}
+          <p className="mt-12 text-center text-xl font-bold uppercase">
+            No account?{" "}
             <Link
               to="/signup"
-              className="text-purple-400 hover:text-purple-300 font-medium transition"
+              className="text-yellow-600 hover:text-yellow-700"
             >
-              Sign Up
+              SIGN UP HERE
             </Link>
           </p>
         </div>
       </div>
+
+      {/* Brutal footer strip at bottom */}
+      <footer className="fixed bottom-0 left-0 right-0 border-t-4 border-black bg-white py-4 text-center text-lg font-bold uppercase">
+        VaultVani — Raw Security • No Excuses
+      </footer>
     </div>
   );
 }
