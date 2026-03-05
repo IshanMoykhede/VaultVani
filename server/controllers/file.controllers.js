@@ -1,4 +1,6 @@
 import filesCollection from "../models/files.model.js";
+import folderCollection from "../models/folder.model.js";
+import mongoose from "mongoose";
 
 export const uploadEncryptedDocument = async (req, res) => {
   try {
@@ -30,6 +32,10 @@ export const uploadEncryptedDocument = async (req, res) => {
       iv: JSON.parse(iv), // 🔥 IMPORTANT
     });
 
+    const folder = await folderCollection.findById(folderId);
+    folder.fileStored = [...folder.fileStored, newDoc._id];
+    await folder.save();
+
     res.status(201).json({
       success: true,
       documentId: newDoc._id,
@@ -47,12 +53,14 @@ export const uploadEncryptedDocument = async (req, res) => {
 export const getMyDocuments = async (req, res) => {
   try {
     const userId = req.id;
+    const { folderId } = req.query;
 
     const documents = await filesCollection
-      .find({ userId })
-      .select("fileName fileSize mimeType createdAt _id")
-      .sort({ createdAt: -1 })
-      .lean();
+      .find({
+        userId: new mongoose.Types.ObjectId(userId),
+        folderId: new mongoose.Types.ObjectId(folderId),
+      })
+      .select(" -encryptedFile -iv ");
 
     res.status(200).json({
       success: true,

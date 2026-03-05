@@ -4,6 +4,86 @@ import jwt from "jsonwebtoken";
 import sendMail from "./utils/sendMail.js";
 import crypto from "crypto";
 
+const neoBrutalistEmailTemplate = (title, content, accentColor = "#fef08a") => `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>${title}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Space Mono', monospace;
+      background: #ffffff;
+      color: #000000;
+      line-height: 1.4;
+    }
+    .container {
+      max-width: 600px;
+      margin: 40px auto;
+      background: #ffffff;
+      border: 8px solid #000000;
+      box-shadow: 16px 16px 0 #000000;
+      padding: 40px 30px;
+    }
+    h1, h2 {
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: -1px;
+      margin: 0 0 24px;
+      font-size: 36px;
+      line-height: 1.1;
+    }
+    h2 {
+      font-size: 28px;
+      border-left: 12px solid ${accentColor};
+      padding-left: 16px;
+    }
+    p {
+      font-size: 18px;
+      margin: 0 0 20px;
+      font-weight: 400;
+    }
+    .highlight {
+      background: ${accentColor};
+      padding: 4px 12px;
+      border: 4px solid #000;
+      display: inline-block;
+      font-weight: 700;
+      font-size: 32px;
+      margin: 16px 0;
+    }
+    .warning {
+      color: #dc2626;
+      font-weight: 700;
+      font-size: 20px;
+    }
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 6px solid #000;
+      font-size: 14px;
+      text-align: center;
+      color: #444;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>${title}</h1>
+    ${content}
+    <div class="footer">
+      VaultVani – Raw Privacy. No Apologies.<br/>
+      © ${new Date().getFullYear()}
+    </div>
+  </div>
+</body>
+</html>
+`;
+
 const signUp = async (req, res) => {
   try {
     const { userName, email, password } = req.body;
@@ -35,12 +115,23 @@ const signUp = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
+    const welcomeContent = `
+      <h2>Welcome, ${userName.toUpperCase()}!</h2>
+      <p>Your VaultVani account is now live.</p>
+      <div class="highlight">SECURE. PRIVATE. YOURS.</div>
+      <p>Login and start protecting your documents.</p>
+      <p class="warning">Never share your recovery phrase.</p>
+    `;
     // 📧 Send welcome email (doesn't break signup if fails)
     sendMail({
       to: email,
       subject: "Welcome to our app 🎉",
       text: `Hi ${userName}, your account was created successfully!`,
-      html: `<h2>Welcome, ${userName} 🎉</h2><p>Your account has been created successfully.</p>`,
+      html: neoBrutalistEmailTemplate(
+        "WELCOME TO VAULTVANI",
+        welcomeContent,
+        "#fef08a",
+      ),
     });
 
     const userObj = newUser.toObject();
@@ -102,6 +193,7 @@ const signIn = async (req, res) => {
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
+
     sendMail({
       to: email,
       subject: "New Login to Your Account 🔐",

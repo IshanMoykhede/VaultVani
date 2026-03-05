@@ -15,6 +15,8 @@ import UploadDocument from "./pages/UploadDocument";
 import UploadDocumentDemo from "./pages/UploadDocumentDemo.jsx";
 import SecurityRouteForUploadDocument from "./components/SecurityRouteForUploadDocument.jsx";
 import RAGDemo from "./pages/RagDemo.jsx";
+import Browse from "./pages/Browse.jsx";
+import Files from "./pages/Files.jsx";
 // import BrowseDocuments from "./pages/BrowseDocuments.jsx";
 // import AIAssistant from "./pages/AIAssistant.jsx";
 // import toast from "react-hot-toast";
@@ -52,6 +54,22 @@ const App = () => {
             <SecurityRouteForUploadDocument>
               <UploadDocument />
             </SecurityRouteForUploadDocument>
+          }
+        />
+        <Route
+          path="/browse"
+          element={
+            <SecurityRouteForUploadDocument>
+              <Browse />
+            </SecurityRouteForUploadDocument>
+          }
+        />
+        <Route
+          path="/files/:folderId"
+          element={
+            <ProtectedRoutes>
+              <Files />
+            </ProtectedRoutes>
           }
         />
       </Routes>

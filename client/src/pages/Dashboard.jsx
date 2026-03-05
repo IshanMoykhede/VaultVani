@@ -10,111 +10,105 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-white text-black font-mono">
+    <div className="min-h-screen bg-white text-black font-mono relative overflow-hidden">
+      {/* Sharp geometric background cuts – no gradients, pure brutal */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-0 left-0 w-1/2 h-1/3 bg-black transform -skew-x-12 opacity-10" />
+        <div className="absolute bottom-0 right-0 w-2/3 h-2/3 bg-yellow-400 transform skew-x-12 opacity-10" />
+        <div className="absolute top-1/3 right-0 w-1/3 h-1/2 bg-red-500 transform -skew-y-12 opacity-5" />
+      </div>
+
       <Header />
 
-      <main className="pt-28 pb-20 px-6 md:px-12 lg:px-24 max-w-6xl mx-auto">
-        {/* Welcome section */}
-        <div className="text-center mb-16 border-b-4 border-yellow-400 pb-10">
-          <h1 className="text-5xl md:text-6xl font-black uppercase tracking-tight leading-tight mb-6">
-            WELCOME BACK
-          </h1>
-          <p className="text-2xl md:text-3xl font-bold uppercase">
-            {user?.userName || "VAULT KEEPER"}
-          </p>
-          <p className="mt-4 text-xl font-medium text-gray-700">
-            YOUR PRIVATE VAULT IS LOCKED & LOADED
-          </p>
+      <main className="relative pt-28 pb-32 px-6 md:px-12 lg:px-24 max-w-7xl mx-auto">
+        {/* Welcome – offset brutal block with yellow glitch */}
+        <div className="relative mb-20">
+          <div className="inline-block bg-black text-white border-6 border-black shadow-[16px_16px_0_#000] px-10 py-8 transform -rotate-1">
+            <h1 className="text-5xl md:text-6xl lg:text-7xl font-black uppercase tracking-tighter leading-none mb-3 text-yellow-400 drop-shadow-[0_0_12px_rgba(250,204,21,0.6)]">
+              WELCOME BACK
+            </h1>
+            <p className="text-2xl md:text-3xl font-bold uppercase">
+              {user?.userName?.toUpperCase() || "VAULT KEEPER"}
+            </p>
+          </div>
+          {/* Yellow cut accent */}
+          <div className="absolute -top-4 -right-8 bg-yellow-400 w-32 h-32 transform rotate-12 border-6 border-black shadow-[8px_8px_0_#000] opacity-90" />
         </div>
 
-        {/* Model downloader badge */}
-        <div className="max-w-md mx-auto mb-16">
-          <ModelDownloader />
-        </div>
-
-        {/* Action Cards */}
-        <div className="grid md:grid-cols-3 gap-8">
-          {/* Upload Card */}
-          <div
-            onClick={() => navigate("/upload")}
-            className="
-              border-4 border-black
-              shadow-[10px_10px_0_#000]
-              bg-white p-8
-              hover:shadow-[14px_14px_0_#000]
-              hover:bg-yellow-50
-              transition-all cursor-pointer
-            "
-          >
-            <div className="text-center">
-              <div className="text-6xl mb-6">📤</div>
-              <h3 className="text-3xl font-black uppercase mb-4">
-                UPLOAD DOCUMENT
-              </h3>
-              <p className="text-lg font-bold">
-                ADD PDFs • ENCRYPTED LOCALLY • SECURE
-              </p>
-            </div>
-          </div>
-
-          {/* Browse Card */}
-          <div
-            onClick={() => navigate("/browse")}
-            className="
-              border-4 border-black
-              shadow-[10px_10px_0_#000]
-              bg-white p-8
-              hover:shadow-[14px_14px_0_#000]
-              hover:bg-yellow-50
-              transition-all cursor-pointer
-            "
-          >
-            <div className="text-center">
-              <div className="text-6xl mb-6">📂</div>
-              <h3 className="text-3xl font-black uppercase mb-4">
-                BROWSE VAULT
-              </h3>
-              <p className="text-lg font-bold">
-                VIEW • SEARCH • MANAGE DOCUMENTS
-              </p>
-            </div>
-          </div>
-
-          {/* AI Assistant Card */}
-          <div
-            onClick={() => navigate("/ai-assistant")}
-            className="
-              border-4 border-black
-              shadow-[10px_10px_0_#000]
-              bg-white p-8
-              hover:shadow-[14px_14px_0_#000]
-              hover:bg-yellow-50
-              transition-all cursor-pointer
-            "
-          >
-            <div className="text-center">
-              <div className="text-6xl mb-6">🤖</div>
-              <h3 className="text-3xl font-black uppercase mb-4">
-                AI ASSISTANT
-              </h3>
-              <p className="text-lg font-bold">
-                ASK ANYTHING • ANSWERS FROM YOUR FILES ONLY
-              </p>
-            </div>
+        {/* Model downloader – industrial badge */}
+        <div className="max-w-md mx-auto mb-20">
+          <div className="border-6 border-black bg-white shadow-[12px_12px_0_#000] p-6 transform hover:rotate-1 transition-transform">
+            <ModelDownloader />
           </div>
         </div>
 
-        {/* Quick privacy reminder */}
-        <div className="mt-16 text-center border-t-4 border-black pt-10">
-          <p className="text-2xl font-black uppercase tracking-widest">
-            END-TO-END ENCRYPTED • LOCAL PROCESSING • ZERO LEAKS
-          </p>
+        {/* Action Cards – tilted, colored edges, deep shadows */}
+        <div className="grid md:grid-cols-3 gap-10">
+          {[
+            {
+              to: "/upload",
+              icon: "📤",
+              title: "UPLOAD DOCUMENT",
+              desc: "ADD • ENCRYPT LOCALLY • SECURE",
+              accent: "border-l-12 border-red-600",
+            },
+            {
+              to: "/browse",
+              icon: "📂",
+              title: "BROWSE VAULT",
+              desc: "VIEW • SEARCH • MANAGE",
+              accent: "border-l-12 border-yellow-400",
+            },
+            {
+              to: "/ai-assistant",
+              icon: "🤖",
+              title: "AI ASSISTANT",
+              desc: "ASK • ANSWERS FROM YOUR FILES ONLY",
+              accent: "border-l-12 border-cyan-600",
+            },
+          ].map((card, i) => (
+            <div
+              key={i}
+              onClick={() => navigate(card.to)}
+              className={`
+                relative border-6 border-black p-8 md:p-10
+                shadow-[12px_12px_0_#000] hover:shadow-[20px_20px_0_#000]
+                bg-white transition-all duration-300 cursor-pointer
+                hover:-translate-y-3 hover:rotate-1 group ${card.accent}
+              `}
+            >
+              {/* Left colored cut */}
+              <div className="absolute -left-3 top-0 bottom-0 w-8 bg-current opacity-90 transform -skew-x-12" />
+
+              <div className="text-center relative z-10">
+                <div className="text-7xl md:text-8xl mb-6 group-hover:scale-110 transition-transform">
+                  {card.icon}
+                </div>
+                <h3 className="text-2xl md:text-3xl font-black uppercase mb-5 tracking-tight">
+                  {card.title}
+                </h3>
+                <p className="text-lg md:text-xl font-bold opacity-90">
+                  {card.desc}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Privacy strip – slanted brutal */}
+        <div className="mt-20 relative overflow-hidden">
+          <div className="bg-black text-white border-6 border-black shadow-[12px_12px_0_#000] px-10 py-8 transform -skew-x-6">
+            <p className="text-2xl md:text-3xl font-black uppercase tracking-widest text-center">
+              END-TO-END ENCRYPTED • LOCAL ONLY • ZERO LEAKS
+            </p>
+          </div>
         </div>
       </main>
 
-      {/* Fixed brutal footer */}
-      <footer className="fixed bottom-0 left-0 right-0 border-t-4 border-black bg-white py-4 text-center text-lg font-bold uppercase">
-        VaultVani — Secure. Raw. No Compromise.
+      {/* Footer – cut edge */}
+      <footer className="relative mt-20 border-t-8 border-black bg-black text-white py-8 text-center text-xl font-black uppercase tracking-widest">
+        <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-32 h-8 bg-yellow-400 transform -skew-x-12 border-4 border-black shadow-[8px_8px_0_#000]" />
+        VaultVani – Secure. Raw. No Compromise.
       </footer>
     </div>
   );

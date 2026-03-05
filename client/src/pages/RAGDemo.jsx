@@ -172,11 +172,7 @@ export default function RAGDemo() {
 
           const plainText = new TextDecoder().decode(decryptedBuffer);
           decryptedTop.push({ text: plainText, score: match.score });
-          console.log(
-            "[DEBUG] Decrypted chunk:",
-            match.id,
-            plainText.substring(0, 50) + "...",
-          );
+          console.log("[DEBUG] Decrypted chunk:", match.id, plainText);
         } catch (decryptErr) {
           console.warn(
             "[DEBUG] Decryption failed for chunk",
