@@ -232,12 +232,79 @@ export async function retrieveTopChunks(
  */
 // src/utils/ragUtils.js (or wherever generateAnswer lives)
 
+let _engine = null;
+let _engineLoading = false;
+let _engineLoadCallbacks = [];
+
+export async function getOrCreateEngine(onProgress) {
+  // If already ready, return immediately
+  if (_engine) return _engine;
+
+  // If currently loading, wait for it
+  if (_engineLoading) {
+    return new Promise((resolve) => {
+      _engineLoadCallbacks.push(resolve);
+    });
+  }
+
+  _engineLoading = true;
+
+  const { CreateMLCEngine } = await import("@mlc-ai/web-llm");
+
+  _engine = await CreateMLCEngine(
+    // Gemma 2B — much better instruction following than Llama 1B
+    // Accurate at extracting specific facts and numbers from context
+    "gemma-2-2b-it-q4f16_1-MLC",
+    {
+      initProgressCallback: (progress) => {
+        onProgress?.(
+          progress.text || "Loading model...",
+          progress.progress || 0,
+        );
+      },
+    },
+  );
+
+  _engineLoading = false;
+
+  // Resolve all waiting callers
+  _engineLoadCallbacks.forEach((cb) => cb(_engine));
+  _engineLoadCallbacks = [];
+
+  return _engine;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SYSTEM PROMPT
+// Short and direct — small models perform better with concise instructions
+// ─────────────────────────────────────────────────────────────────────────────
+const SYSTEM_PROMPT = `You are a precise document assistant. You answer questions using ONLY the provided context.
+
+Rules:
+- Extract exact values (numbers, names, dates) directly from context
+- If the answer is a number or specific value, state it directly
+- If context doesn't contain the answer, say: "This information is not in your documents."
+- Never guess or use outside knowledge
+- Keep answers short and direct`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN FUNCTION
+//
+// Parameters:
+//   question     — current user question
+//   topChunks    — array of { text, score } decrypted chunks
+//   history      — array of { role: "user"|"assistant", content: string }
+//                  pass full conversation history for memory
+//   setGenerating, setAnswer, setError — state setters
+// ─────────────────────────────────────────────────────────────────────────────
 export async function generateAnswer(
   question,
   topChunks,
+  history = [],
   setGenerating,
   setAnswer,
   setError,
+  onModelProgress,
 ) {
   if (topChunks.length === 0) {
     setError("No relevant chunks found.");
@@ -246,48 +313,53 @@ export async function generateAnswer(
 
   setGenerating(true);
   setError("");
+  setAnswer("...");
 
   try {
-    const { CreateMLCEngine } = await import("@mlc-ai/web-llm");
+    // Get or reuse engine (no lag on 2nd+ queries)
+    setAnswer("Loading model...");
+    const engine = await getOrCreateEngine(onModelProgress);
 
-    const engine = await CreateMLCEngine("Llama-3.2-1B-Instruct-q4f16_1-MLC");
+    // Build context from top chunks
+    // Sort by score descending — most relevant first
+    const sortedChunks = [...topChunks].sort(
+      (a, b) => (b.score || 0) - (a.score || 0),
+    );
+    let context = sortedChunks
+      .map((c, i) => `[Document ${i + 1}]\n${c.text}`)
+      .join("\n\n");
 
-    // ─────────────────────────────────────────────
-    // Optimized prompt for small local model (1B params)
-    // ─────────────────────────────────────────────
-    let context = topChunks.map((c) => c.text).join("\n\n");
-
-    // Trim context if too long (prevents lag / overload on 1B model)
-    if (context.length > 4000) {
-      context = context.slice(0, 4000) + "\n... (truncated for brevity)";
+    // Trim context to fit model window — Gemma 2B handles ~3000 chars well
+    if (context.length > 3000) {
+      context = context.slice(0, 3000) + "\n...(truncated)";
     }
 
-    const systemPrompt = `You are a document assistant.
+    // Build message array with full conversation history for memory
+    // Structure:
+    //   system prompt
+    //   [previous turns from history]
+    //   current context + question
+    const messages = [{ role: "system", content: SYSTEM_PROMPT }];
 
-Answer using ONLY the provided context.
-If the answer is not clearly found in the context, reply exactly:
-"I don't have enough information in the documents."
+    // Add conversation history (gives the model memory of previous Q&A)
+    // Limit to last 6 turns to avoid exceeding context window
+    const recentHistory = history.slice(-6);
+    for (const turn of recentHistory) {
+      messages.push({ role: turn.role, content: turn.content });
+    }
 
-Be concise and factual.
-No outside knowledge. No guessing.`;
+    // Current question with fresh context injected
+    messages.push({
+      role: "user",
+      content: `Context:\n${context}\n\nQuestion: ${question}`,
+    });
 
-    const userPrompt = `Context:
-${context}
-
-Question:
-${question}
-
-Answer:`;
-
-    setAnswer("Generating answer...");
+    setAnswer("Thinking...");
 
     const reply = await engine.chat.completions.create({
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.2, // very low → almost deterministic, minimal hallucination
-      max_tokens: 256, // faster, enough for most answers
+      messages,
+      temperature: 0.1, // very low = precise factual extraction
+      max_tokens: 200, // short answers = fast + accurate for document QA
       stream: true,
     });
 
@@ -299,8 +371,7 @@ Answer:`;
       setAnswer(fullAnswer.trim());
     }
 
-    const final = fullAnswer.trim();
-    setAnswer(final || "No answer generated.");
+    setAnswer(fullAnswer.trim() || "No answer generated.");
   } catch (err) {
     console.error("Generation failed:", err);
     setError("Failed to generate answer: " + (err.message || "Unknown error"));

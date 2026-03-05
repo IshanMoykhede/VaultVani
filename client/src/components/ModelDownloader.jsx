@@ -17,7 +17,7 @@ const EMBEDDING_FILES = [
   "onnx/model.onnx",
 ];
 
-const SLM_MODEL = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
+const SLM_MODEL = "gemma-2-2b-it-q4f16_1-MLC";
 
 export default function ModelDownloader() {
   const [embeddingDownloaded, setEmbeddingDownloaded] = useState(false);
