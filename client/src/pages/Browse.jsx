@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { toast } from "react-toastify";
+import { toast } from "react-hot-toast"; // assuming you're using react-hot-toast now
+import Header from "../components/Header";
 
 export default function Browse() {
   const [folders, setFolders] = useState([]);
@@ -10,9 +11,6 @@ export default function Browse() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState("desc");
-
-  // Trigger color re-roll on every search change
-  const [colorTrigger, setColorTrigger] = useState(0);
 
   useEffect(() => {
     const fetchFolders = async () => {
@@ -34,11 +32,6 @@ export default function Browse() {
     fetchFolders();
   }, []);
 
-  // Re-roll colors on every search keystroke
-  useEffect(() => {
-    setColorTrigger((prev) => prev + 1);
-  }, [searchTerm]);
-
   // Filter & Sort
   const filteredAndSorted = folders
     .filter((f) =>
@@ -55,55 +48,44 @@ export default function Browse() {
       return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
     });
 
-  // Violent hover color palette (random on each render/search)
-  const brutalColors = [
-    "hover:bg-red-300 hover:text-white",
-    "hover:bg-yellow-300 hover:text-black",
-    "hover:bg-emerald-300 hover:text-black",
-    "hover:bg-cyan-300 hover:text-black",
-    "hover:bg-violet-300 hover:text-white",
-    "hover:bg-orange-300 hover:text-black",
-    "hover:bg-pink-300 hover:text-black",
-    "hover:bg-lime-300 hover:text-black",
-  ];
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <p className="text-5xl md:text-6xl font-black uppercase animate-pulse tracking-tighter border-l-8 border-black pl-6">
-          LOADING VAULT...
-        </p>
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-4xl md:text-5xl font-black uppercase text-orange-400 animate-pulse tracking-tight">
+          Loading Vault...
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white text-black font-mono pb-16">
-      {/* Header – brutal offset block */}
+    <div className="min-h-screen bg-black text-white font-mono antialiased pb-16">
+      {/* Header */}
+      <Header />
       <header className="pt-28 pb-12 px-6 md:px-12 lg:px-24 text-center">
-        <div className="inline-block bg-black text-white border-6 border-black shadow-[16px_16px_0_#000] px-10 py-6 md:px-14 md:py-8 transform -rotate-1">
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-black uppercase tracking-tighter leading-none mb-3 text-yellow-400 drop-shadow-[0_0_16px_rgba(250,204,21,0.5)]">
-            YOUR FOLDERS
+        <div className="inline-block bg-gray-900/30 backdrop-blur-xl border border-white/10 rounded-3xl px-10 py-8 shadow-2xl shadow-black/60">
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-black uppercase tracking-tight text-orange-400 leading-tight mb-3">
+            Your Folders
           </h1>
-          <p className="text-xl md:text-2xl font-bold uppercase tracking-widest">
-            ORGANIZED CHAOS
+          <p className="text-lg md:text-xl text-gray-300 font-medium uppercase tracking-wide">
+            Organized • Encrypted • Yours
           </p>
         </div>
       </header>
 
-      {/* Controls – balanced size */}
-      <div className="max-w-6xl mx-auto px-6 md:px-12 mb-10">
+      {/* Search & Sort Controls */}
+      <div className="max-w-6xl mx-auto px-6 md:px-12 mb-12">
         <div className="flex flex-col md:flex-row gap-5 items-stretch">
           <input
             type="text"
-            placeholder="SEARCH FOLDERS... (type to explode colors)"
+            placeholder="Search folders..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="
-              flex-1 px-6 py-5 text-xl md:text-2xl font-black uppercase
-              border-4 border-black shadow-[8px_8px_0_#000]
-              focus:shadow-[12px_12px_0_#000] focus:outline-none focus:bg-yellow-100
-              placeholder-gray-600 transition-all
+              flex-1 px-6 py-4 text-lg bg-gray-900/40 border border-white/10
+              rounded-2xl focus:border-orange-500/50 focus:outline-none
+              placeholder-gray-500 transition-all duration-200 backdrop-blur-sm
+              shadow-inner shadow-black/30
             "
           />
 
@@ -111,25 +93,27 @@ export default function Browse() {
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
             className="
-              px-6 py-5 text-xl font-black uppercase
-              border-4 border-black shadow-[8px_8px_0_#000] bg-white
-              focus:shadow-[12px_12px_0_#000] focus:outline-none
-              transition-all
+              px-6 py-4 text-lg bg-gray-900/40 border border-white/10
+              rounded-2xl focus:border-orange-500/50 focus:outline-none
+              transition-all duration-200 backdrop-blur-sm
+              shadow-inner shadow-black/30
             "
           >
-            <option value="createdAt">DATE CREATED</option>
-            <option value="name">FOLDER NAME</option>
+            <option value="createdAt">Date Created</option>
+            <option value="name">Folder Name</option>
           </select>
 
           <button
             onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
             className="
-              px-8 py-5 text-xl md:text-2xl font-black uppercase
-              bg-black text-white border-4 border-black shadow-[8px_8px_0_#000]
-              hover:shadow-[12px_12px_0_#000] hover:bg-red-500 transition-all
+              px-8 py-4 text-lg font-semibold uppercase rounded-2xl
+              bg-orange-600/80 text-white border border-orange-400/30
+              hover:bg-orange-500 hover:border-orange-300/50
+              hover:shadow-orange-900/40 transition-all duration-300
+              shadow-lg shadow-orange-900/30 flex items-center justify-center gap-2
             "
           >
-            {sortOrder === "asc" ? "↑ ASC" : "↓ DESC"}
+            {sortOrder === "asc" ? "↑ Newest First" : "↓ Oldest First"}
           </button>
         </div>
       </div>
@@ -137,41 +121,37 @@ export default function Browse() {
       {/* Folders Grid */}
       {filteredAndSorted.length === 0 && searchTerm ? (
         <div className="text-center py-24">
-          <p className="text-5xl md:text-6xl font-black uppercase mb-6 border-l-8 border-black pl-6">
-            NO MATCH FOUND
+          <p className="text-4xl md:text-5xl font-black uppercase text-orange-400 mb-6">
+            No folders found
           </p>
-          <p className="text-2xl font-bold uppercase">TRY DIFFERENT SEARCH</p>
+          <p className="text-xl text-gray-400">Try a different search term</p>
         </div>
       ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto px-6 md:px-12">
-          {filteredAndSorted.map((folder) => {
-            // Random color changes on every search keystroke
-            const randomHover =
-              brutalColors[Math.floor(Math.random() * brutalColors.length)];
-
-            return (
-              <Link
-                key={folder._id}
-                to={`/files/${folder._id}`}
-                className={`
-                  border-6 border-black p-8
-                  shadow-[10px_10px_0_#000] hover:shadow-[16px_16px_0_#000]
-                  transition-all duration-300 hover:-translate-y-2 hover:scale-[1.02]
-                  bg-white ${randomHover}
-                `}
-              >
-                <h3 className="text-2xl md:text-3xl font-black uppercase mb-4 truncate">
-                  {folder.folderName}
-                </h3>
-                <div className="text-lg md:text-xl font-bold mb-2">
-                  {folder.fileStored?.length || 0} DOCUMENTS
-                </div>
-                <div className="text-base opacity-80">
-                  CREATED {new Date(folder.createdAt).toLocaleDateString()}
-                </div>
-              </Link>
-            );
-          })}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto px-6 md:px-12">
+          {filteredAndSorted.map((folder) => (
+            <Link
+              key={folder._id}
+              to={`/files/${folder._id}`}
+              className="
+                group relative
+                bg-gray-900/25 backdrop-blur-xl border border-white/10
+                rounded-2xl p-8 shadow-xl shadow-black/50
+                hover:shadow-orange-900/40 hover:border-orange-500/30
+                hover:scale-[1.02] hover:brightness-110
+                transition-all duration-300 cursor-pointer
+              "
+            >
+              <h3 className="text-2xl md:text-3xl font-black uppercase mb-4 text-orange-300 group-hover:text-orange-400 transition-colors truncate">
+                {folder.folderName}
+              </h3>
+              <div className="text-lg font-medium text-gray-300 mb-2">
+                {folder.fileStored?.length || 0} documents
+              </div>
+              <div className="text-sm text-gray-500">
+                Created {new Date(folder.createdAt).toLocaleDateString()}
+              </div>
+            </Link>
+          ))}
         </div>
       )}
     </div>

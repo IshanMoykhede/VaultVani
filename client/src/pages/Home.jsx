@@ -12,48 +12,48 @@ function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-black font-mono">
-      {/* Navbar – brutal pill with thick border & shadow */}
-      <header className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-6xl">
-        <div className="bg-white border-4 border-black shadow-[12px_12px_0px_#000] px-8 py-5">
+    <div className="min-h-screen bg-black text-white font-mono antialiased">
+      {/* Navbar – glass pill */}
+      <header className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-6xl px-4">
+        <div className="bg-gray-900/30 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/60 px-6 py-4">
           <div className="flex justify-between items-center">
-            <div className="text-4xl font-black tracking-tighter uppercase">
+            <div className="text-3xl md:text-4xl font-black tracking-tight uppercase text-orange-400">
               VaultVani
             </div>
 
-            <nav className="hidden md:flex items-center gap-12 text-xl font-bold uppercase">
+            <nav className="hidden md:flex items-center gap-10 text-base font-semibold uppercase">
               <Link
-                to="/features"
-                className="hover:text-yellow-400 transition-colors"
+                to="#features"
+                className="hover:text-orange-400 transition-colors"
               >
                 Features
               </Link>
               <Link
                 to="/how"
-                className="hover:text-yellow-400 transition-colors"
+                className="hover:text-orange-400 transition-colors"
               >
                 How It Works
               </Link>
               <Link
                 to="/privacy"
-                className="hover:text-yellow-400 transition-colors"
+                className="hover:text-orange-400 transition-colors"
               >
                 Privacy
               </Link>
             </nav>
 
-            <div className="flex items-center gap-8 text-xl font-bold uppercase">
+            <div className="flex items-center gap-5 text-base font-semibold uppercase">
               {isAuthenticated ? (
                 <>
                   <Link
                     to="/dashboard"
-                    className="hover:text-yellow-400 transition-colors"
+                    className="hover:text-orange-400 transition-colors"
                   >
                     Dashboard
                   </Link>
                   <button
                     onClick={handleLogout}
-                    className="px-6 py-3 bg-red-500 text-white border-4 border-black shadow-[8px_8px_0px_#000] hover:bg-red-600 hover:shadow-[12px_12px_0px_#000] transition-all"
+                    className="px-5 py-2.5 bg-orange-600/80 text-white rounded-xl border border-orange-400/30 backdrop-blur-sm hover:bg-orange-500 hover:border-orange-300/50 transition-all shadow-lg shadow-orange-900/30 text-sm md:text-base"
                   >
                     Logout
                   </button>
@@ -62,13 +62,13 @@ function Home() {
                 <>
                   <Link
                     to="/signin"
-                    className="hover:text-yellow-400 transition-colors"
+                    className="hover:text-orange-400 transition-colors"
                   >
                     Login
                   </Link>
                   <Link
                     to="/signup"
-                    className="px-8 py-4 bg-yellow-400 text-black border-4 border-black shadow-[12px_12px_0px_#000] hover:bg-yellow-300 hover:shadow-[16px_16px_0px_#000] transition-all text-xl font-black uppercase"
+                    className="px-6 py-3 bg-orange-500 text-black rounded-xl border border-orange-400/40 shadow-lg shadow-orange-900/40 hover:bg-orange-400 hover:shadow-xl hover:shadow-orange-800/50 transition-all font-black uppercase text-sm md:text-base"
                   >
                     Get Started
                   </Link>
@@ -79,30 +79,31 @@ function Home() {
         </div>
       </header>
 
-      {/* Hero – massive text, offset, broken grid feel */}
-      <section className="pt-48 pb-32 px-6 md:px-12 lg:px-24">
-        <div className="max-w-6xl mx-auto">
-          <h1 className="text-6xl md:text-8xl lg:text-9xl font-black leading-none tracking-tighter uppercase mb-12 border-l-8 border-black pl-6">
+      {/* Hero */}
+      <section className="pt-40 pb-24 px-6 md:px-12 lg:px-24 relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-black via-black to-transparent pointer-events-none" />
+        <div className="max-w-6xl mx-auto relative z-10">
+          <h1 className="text-5xl sm:text-6xl md:text-7xl font-black leading-tight tracking-tight uppercase mb-10">
             Documents
             <br />
-            that think.
+            that <span className="text-orange-400">think</span>.
             <br />
-            <span className="text-yellow-400">Privacy</span>
+            Privacy
             <br />
-            that endures.
+            that <span className="text-orange-400">endures</span>.
           </h1>
 
-          <p className="text-2xl md:text-4xl font-bold max-w-4xl mb-16 leading-tight">
+          <p className="text-xl md:text-2xl font-medium max-w-4xl mb-12 leading-relaxed text-gray-300">
             {isAuthenticated
-              ? "YOUR VAULT IS OPEN. GET IN."
-              : "UPLOAD → ENCRYPT LOCALLY → ASK ANYTHING → ANSWERS STAY YOURS. NO BS. NO LEAKS."}
+              ? "YOUR VAULT IS OPEN. ENTER NOW."
+              : "UPLOAD → ENCRYPT LOCALLY → ASK ANYTHING → ANSWERS STAY YOURS. NO LEAKS."}
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-8">
+          <div className="flex flex-col sm:flex-row gap-5">
             {isAuthenticated ? (
               <Link
                 to="/dashboard"
-                className="px-12 py-8 text-3xl font-black uppercase bg-black text-white border-4 border-black shadow-[12px_12px_0px_#000] hover:shadow-[16px_16px_0px_#000] hover:bg-yellow-400 hover:text-black transition-all"
+                className="px-10 py-5 text-2xl md:text-3xl font-black uppercase bg-orange-600/80 text-white rounded-2xl border border-orange-400/30 backdrop-blur-md shadow-2xl shadow-orange-900/40 hover:bg-orange-500 hover:shadow-orange-800/60 transition-all"
               >
                 ENTER DASHBOARD
               </Link>
@@ -110,13 +111,13 @@ function Home() {
               <>
                 <Link
                   to="/signup"
-                  className="px-12 py-8 text-3xl font-black uppercase bg-yellow-400 text-black border-4 border-black shadow-[12px_12px_0px_#000] hover:shadow-[16px_16px_0px_#000] hover:bg-black hover:text-yellow-400 transition-all"
+                  className="px-10 py-5 text-2xl md:text-3xl font-black uppercase bg-orange-500 text-black rounded-2xl border border-orange-400/40 shadow-2xl shadow-orange-900/50 hover:bg-orange-400 hover:shadow-orange-800/60 transition-all"
                 >
                   BUILD VAULT
                 </Link>
                 <Link
                   to="/signin"
-                  className="px-12 py-8 text-3xl font-black uppercase border-4 border-black hover:bg-black hover:text-white transition-all"
+                  className="px-10 py-5 text-2xl md:text-3xl font-black uppercase rounded-2xl border border-white/20 hover:bg-white/10 hover:border-orange-400/40 transition-all backdrop-blur-sm"
                 >
                   LOGIN →
                 </Link>
@@ -124,29 +125,29 @@ function Home() {
             )}
           </div>
 
-          <div className="mt-20 text-xl font-bold uppercase tracking-widest flex flex-wrap gap-8">
-            <span>ENCRYPTED END-TO-END</span>
-            <span>LOCAL AI ONLY</span>
+          <div className="mt-16 text-base md:text-lg font-semibold uppercase tracking-wider flex flex-wrap gap-8 text-orange-300/80">
+            <span>END-TO-END ENCRYPTED</span>
+            <span>LOCAL AI ENGINE</span>
             <span>ZERO KNOWLEDGE</span>
           </div>
         </div>
       </section>
 
-      {/* Features – blocky, offset cards with thick shadows */}
+      {/* Features */}
       <section
         id="features"
-        className="py-32 px-6 md:px-12 lg:px-24 bg-black text-white"
+        className="py-24 px-6 md:px-12 lg:px-24 bg-gradient-to-b from-black to-gray-950"
       >
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-7xl font-black uppercase mb-24 text-yellow-400 border-b-8 border-yellow-400 pb-6">
+          <h2 className="text-5xl md:text-6xl font-black uppercase mb-16 text-orange-400">
             Built Different
           </h2>
 
-          <div className="grid md:grid-cols-3 gap-12">
+          <div className="grid md:grid-cols-3 gap-8">
             {[
               {
                 title: "ZERO-KNOWLEDGE ENCRYPTION",
-                desc: "YOUR FILES GET LOCKED WITH YOUR PASSWORD BEFORE THEY LEAVE YOUR DEVICE. WE CAN'T SEE SHIT.",
+                desc: "YOUR FILES GET LOCKED WITH YOUR PASSWORD BEFORE THEY LEAVE YOUR DEVICE. WE CAN'T SEE ANYTHING.",
               },
               {
                 title: "NATURAL LANGUAGE POWER",
@@ -159,26 +160,28 @@ function Home() {
             ].map((feature, i) => (
               <div
                 key={i}
-                className="bg-white text-black p-10 border-4 border-black shadow-[12px_12px_0px_#000] hover:shadow-[16px_16px_0px_#000] transition-all hover:-translate-y-2"
+                className="bg-gray-900/25 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-xl shadow-black/50 hover:shadow-orange-900/30 hover:border-orange-500/30 transition-all duration-300"
               >
-                <h3 className="text-4xl font-black uppercase mb-8 leading-tight">
+                <h3 className="text-2xl md:text-3xl font-black uppercase mb-5 text-orange-400 leading-tight">
                   {feature.title}
                 </h3>
-                <p className="text-2xl font-bold">{feature.desc}</p>
+                <p className="text-lg md:text-xl font-medium text-gray-200">
+                  {feature.desc}
+                </p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* How It Works – numbered blocks, raw */}
-      <section id="how" className="py-32 px-6 md:px-12 lg:px-24">
+      {/* How It Works */}
+      <section id="how" className="py-24 px-6 md:px-12 lg:px-24">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-7xl font-black uppercase mb-24 border-l-8 border-black pl-6">
+          <h2 className="text-5xl md:text-6xl font-black uppercase mb-16 text-orange-400 border-l-6 border-orange-500 pl-5">
             How It Works
           </h2>
 
-          <div className="grid md:grid-cols-4 gap-12">
+          <div className="grid md:grid-cols-4 gap-6">
             {[
               {
                 step: "01",
@@ -203,15 +206,17 @@ function Home() {
             ].map((item, i) => (
               <div
                 key={i}
-                className="border-4 border-black p-8 shadow-[8px_8px_0px_#000] hover:shadow-[12px_12px_0px_#000] transition-all"
+                className="bg-gray-900/20 backdrop-blur-lg border border-white/10 rounded-2xl p-7 shadow-lg shadow-black/40 hover:shadow-orange-900/30 hover:border-orange-500/20 transition-all"
               >
-                <div className="text-6xl font-black mb-6 text-yellow-400">
+                <div className="text-5xl font-black mb-4 text-orange-500">
                   {item.step}
                 </div>
-                <h3 className="text-3xl font-black uppercase mb-4">
+                <h3 className="text-2xl font-black uppercase mb-3 text-orange-300">
                   {item.title}
                 </h3>
-                <p className="text-xl font-bold">{item.desc}</p>
+                <p className="text-base md:text-lg font-medium text-gray-300">
+                  {item.desc}
+                </p>
               </div>
             ))}
           </div>
@@ -221,60 +226,60 @@ function Home() {
       {/* Privacy */}
       <section
         id="privacy"
-        className="py-32 px-6 md:px-12 lg:px-24 bg-black text-white"
+        className="py-24 px-6 md:px-12 lg:px-24 bg-gradient-to-t from-black to-gray-950"
       >
         <div className="max-w-5xl mx-auto text-center">
-          <h2 className="text-7xl font-black uppercase mb-20">
+          <h2 className="text-5xl md:text-6xl font-black uppercase mb-16 text-orange-400">
             PRIVACY BY DESIGN
           </h2>
 
-          <div className="grid md:grid-cols-2 gap-12">
-            <div className="bg-white text-black p-12 border-4 border-black shadow-[12px_12px_0px_#000]">
-              <h3 className="text-4xl font-black uppercase mb-8">
+          <div className="grid md:grid-cols-2 gap-8">
+            <div className="bg-gray-900/25 backdrop-blur-xl border border-white/10 rounded-3xl p-10 shadow-xl shadow-black/50">
+              <h3 className="text-2xl md:text-3xl font-black uppercase mb-6 text-orange-400">
                 ZERO-KNOWLEDGE ARCHITECTURE
               </h3>
-              <p className="text-2xl font-bold">
+              <p className="text-lg md:text-xl font-medium text-gray-200">
                 KEYS NEVER LEAVE YOUR DEVICE. WE CAN'T ACCESS YOUR DATA – EVER.
               </p>
             </div>
 
-            <div className="bg-white text-black p-12 border-4 border-black shadow-[12px_12px_0px_#000]">
-              <h3 className="text-4xl font-black uppercase mb-8">
+            <div className="bg-gray-900/25 backdrop-blur-xl border border-white/10 rounded-3xl p-10 shadow-xl shadow-black/50">
+              <h3 className="text-2xl md:text-3xl font-black uppercase mb-6 text-orange-400">
                 LOCAL INTELLIGENCE ONLY
               </h3>
-              <p className="text-2xl font-bold">
+              <p className="text-lg md:text-xl font-medium text-gray-200">
                 ALL PROCESSING IN BROWSER. NO SERVERS TOUCHED. NO TRACKING.
               </p>
             </div>
           </div>
 
-          <p className="mt-20 text-4xl font-black uppercase">
+          <p className="mt-16 text-2xl md:text-3xl font-black uppercase text-orange-300 tracking-wide">
             YOUR DOCS. YOUR KEYS. YOUR RULES.
           </p>
         </div>
       </section>
 
       {/* Final CTA */}
-      <section className="py-32 px-6 md:px-12 lg:px-24 text-center">
+      <section className="py-24 px-6 md:px-12 lg:px-24 text-center">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-7xl font-black uppercase mb-12">
+          <h2 className="text-5xl md:text-6xl font-black uppercase mb-10 text-orange-400">
             READY TO BUILD?
           </h2>
-          <p className="text-3xl font-bold mb-12">
+          <p className="text-xl md:text-2xl font-medium mb-10 text-gray-200">
             SECURE DOCUMENTS WITH REAL INTELLIGENCE. NO COMPROMISE.
           </p>
 
           {isAuthenticated ? (
             <Link
               to="/dashboard"
-              className="inline-block px-16 py-10 text-4xl font-black uppercase bg-black text-white border-4 border-black shadow-[16px_16px_0px_#000] hover:shadow-[20px_20px_0px_#000] hover:bg-yellow-400 hover:text-black transition-all"
+              className="inline-block px-12 py-6 text-2xl md:text-3xl font-black uppercase bg-orange-600/80 text-white rounded-3xl border border-orange-400/30 backdrop-blur-md shadow-2xl shadow-orange-900/50 hover:bg-orange-500 hover:shadow-orange-800/70 transition-all"
             >
               DASHBOARD NOW
             </Link>
           ) : (
             <Link
               to="/signup"
-              className="inline-block px-16 py-10 text-4xl font-black uppercase bg-yellow-400 text-black border-4 border-black shadow-[16px_16px_0px_#000] hover:shadow-[20px_20px_0px_#000] hover:bg-black hover:text-yellow-400 transition-all"
+              className="inline-block px-12 py-6 text-2xl md:text-3xl font-black uppercase bg-orange-500 text-black rounded-3xl border border-orange-400/40 shadow-2xl shadow-orange-900/60 hover:bg-orange-400 hover:shadow-orange-800/70 transition-all"
             >
               CREATE VAULT
             </Link>
@@ -283,8 +288,8 @@ function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="py-20 px-6 text-center text-xl font-bold uppercase border-t-4 border-black">
-        © {new Date().getFullYear()} VaultVani – Raw Privacy. No Apologies.
+      <footer className="py-16 px-6 text-center text-base font-semibold uppercase border-t border-white/10 text-gray-400">
+        © {new Date().getFullYear()} VaultVani – Privacy First. No Compromises.
       </footer>
     </div>
   );

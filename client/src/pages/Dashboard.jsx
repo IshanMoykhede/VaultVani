@@ -1,5 +1,4 @@
 // src/components/Dashboard.jsx
-
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Header from "../components/Header";
@@ -9,106 +8,136 @@ export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const displayName = user?.userName?.toUpperCase() || "Vault Keeper";
+
   return (
-    <div className="min-h-screen bg-white text-black font-mono relative overflow-hidden">
-      {/* Sharp geometric background cuts – no gradients, pure brutal */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-0 w-1/2 h-1/3 bg-black transform -skew-x-12 opacity-10" />
-        <div className="absolute bottom-0 right-0 w-2/3 h-2/3 bg-yellow-400 transform skew-x-12 opacity-10" />
-        <div className="absolute top-1/3 right-0 w-1/3 h-1/2 bg-red-500 transform -skew-y-12 opacity-5" />
-      </div>
+    <div className="min-h-screen bg-black text-white font-mono antialiased relative overflow-hidden">
+      {/* Background depth */}
+      <div className="fixed inset-0 pointer-events-none bg-gradient-to-br from-black via-gray-950 to-black" />
 
       <Header />
 
-      <main className="relative pt-28 pb-32 px-6 md:px-12 lg:px-24 max-w-7xl mx-auto">
-        {/* Welcome – offset brutal block with yellow glitch */}
-        <div className="relative mb-20">
-          <div className="inline-block bg-black text-white border-6 border-black shadow-[16px_16px_0_#000] px-10 py-8 transform -rotate-1">
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-black uppercase tracking-tighter leading-none mb-3 text-yellow-400 drop-shadow-[0_0_12px_rgba(250,204,21,0.6)]">
-              WELCOME BACK
-            </h1>
-            <p className="text-2xl md:text-3xl font-bold uppercase">
-              {user?.userName?.toUpperCase() || "VAULT KEEPER"}
-            </p>
+      <main className="relative pt-28 pb-20 px-6 md:px-12 lg:px-24 max-w-7xl mx-auto">
+        {/* Merged Welcome + Model Readiness Panel */}
+        <div className="mb-20">
+          <div
+            className={`
+              relative overflow-hidden
+              bg-gradient-to-br from-gray-900/40 via-gray-900/25 to-gray-950/30
+              backdrop-blur-2xl border border-white/5 rounded-3xl
+              shadow-2xl shadow-black/70
+              p-8 md:p-10 lg:p-12
+              before:content-[''] before:absolute before:inset-0
+              before:bg-gradient-to-r before:from-orange-600/8 before:via-transparent before:to-orange-500/5
+              before:pointer-events-none
+            `}
+          >
+            {/* Subtle animated shine */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/6 to-transparent animate-shine-slow" />
+            </div>
+
+            <div className="relative z-10 grid md:grid-cols-2 gap-10 lg:gap-16 items-center">
+              {/* Left: Welcome + personal greeting */}
+              <div className="space-y-5">
+                <h1
+                  className={`
+                    text-5xl sm:text-6xl md:text-7xl font-black uppercase tracking-[-0.04em]
+                    bg-gradient-to-r from-orange-400 via-orange-300 to-orange-500
+                    bg-clip-text text-transparent leading-none animate-gradient-x-slow
+                  `}
+                >
+                  Welcome Back
+                </h1>
+
+                <div className="flex items-center gap-4 flex-wrap">
+                  <p className="text-2xl md:text-3xl font-bold tracking-wide text-white/95">
+                    {displayName}
+                  </p>
+                  <span className="px-4 py-1.5 text-sm font-semibold uppercase tracking-wider bg-orange-900/50 text-orange-200 border border-orange-500/30 rounded-full backdrop-blur-md shadow-sm">
+                    Identity Verified
+                  </span>
+                </div>
+
+                <p className="text-lg text-gray-300 max-w-lg leading-relaxed">
+                  Your encrypted vault is waiting. Local intelligence activates
+                  once models are fully loaded.
+                </p>
+              </div>
+
+              {/* Right: Model readiness status */}
+              <div className="space-y-6 md:border-l md:border-white/10 md:pl-10 lg:pl-16">
+                <div className="text-xl md:text-2xl font-semibold text-orange-300/90 mb-4">
+                  System Readiness
+                </div>
+
+                <div className="space-y-5">
+                  <ModelDownloader />
+                </div>
+              </div>
+            </div>
           </div>
-          {/* Yellow cut accent */}
-          <div className="absolute -top-4 -right-8 bg-yellow-400 w-32 h-32 transform rotate-12 border-6 border-black shadow-[8px_8px_0_#000] opacity-90" />
         </div>
 
-        {/* Model downloader – industrial badge */}
-        <div className="max-w-md mx-auto mb-20">
-          <div className="border-6 border-black bg-white shadow-[12px_12px_0_#000] p-6 transform hover:rotate-1 transition-transform">
-            <ModelDownloader />
-          </div>
-        </div>
-
-        {/* Action Cards – tilted, colored edges, deep shadows */}
-        <div className="grid md:grid-cols-3 gap-10">
+        {/* Action Cards */}
+        <div className="grid md:grid-cols-3 gap-8 mb-16">
           {[
             {
               to: "/upload",
               icon: "📤",
-              title: "UPLOAD DOCUMENT",
-              desc: "ADD • ENCRYPT LOCALLY • SECURE",
-              accent: "border-l-12 border-red-600",
+              title: "Upload Document",
+              desc: "Add • Encrypt locally • Secure",
             },
             {
               to: "/browse",
               icon: "📂",
-              title: "BROWSE VAULT",
-              desc: "VIEW • SEARCH • MANAGE",
-              accent: "border-l-12 border-yellow-400",
+              title: "Browse Vault",
+              desc: "View • Search • Manage",
             },
             {
               to: "/ai-assistant",
               icon: "🤖",
-              title: "AI ASSISTANT",
-              desc: "ASK • ANSWERS FROM YOUR FILES ONLY",
-              accent: "border-l-12 border-cyan-600",
+              title: "AI Assistant",
+              desc: "Ask • Answers from your files only",
             },
-          ].map((card, i) => (
+          ].map((card, index) => (
             <div
-              key={i}
+              key={index}
               onClick={() => navigate(card.to)}
-              className={`
-                relative border-6 border-black p-8 md:p-10
-                shadow-[12px_12px_0_#000] hover:shadow-[20px_20px_0_#000]
-                bg-white transition-all duration-300 cursor-pointer
-                hover:-translate-y-3 hover:rotate-1 group ${card.accent}
-              `}
+              className="
+                group relative cursor-pointer
+                bg-gray-900/25 backdrop-blur-xl border border-white/10
+                rounded-2xl p-8 shadow-xl shadow-black/50
+                hover:shadow-orange-900/40 hover:border-orange-500/30
+                hover:scale-[1.02] hover:brightness-110
+                transition-all duration-300
+              "
             >
-              {/* Left colored cut */}
-              <div className="absolute -left-3 top-0 bottom-0 w-8 bg-current opacity-90 transform -skew-x-12" />
-
-              <div className="text-center relative z-10">
-                <div className="text-7xl md:text-8xl mb-6 group-hover:scale-110 transition-transform">
+              <div className="text-center">
+                <div className="text-6xl md:text-7xl mb-6 group-hover:scale-110 transition-transform duration-300">
                   {card.icon}
                 </div>
-                <h3 className="text-2xl md:text-3xl font-black uppercase mb-5 tracking-tight">
+                <h3 className="text-2xl md:text-3xl font-black uppercase mb-4 tracking-tight text-orange-300 group-hover:text-orange-400 transition-colors">
                   {card.title}
                 </h3>
-                <p className="text-lg md:text-xl font-bold opacity-90">
-                  {card.desc}
-                </p>
+                <p className="text-lg font-medium text-gray-300">{card.desc}</p>
               </div>
             </div>
           ))}
         </div>
 
-        {/* Privacy strip – slanted brutal */}
-        <div className="mt-20 relative overflow-hidden">
-          <div className="bg-black text-white border-6 border-black shadow-[12px_12px_0_#000] px-10 py-8 transform -skew-x-6">
-            <p className="text-2xl md:text-3xl font-black uppercase tracking-widest text-center">
-              END-TO-END ENCRYPTED • LOCAL ONLY • ZERO LEAKS
+        {/* Privacy assurance strip */}
+        <div className="mt-16">
+          <div className="bg-gray-900/30 backdrop-blur-lg border border-white/10 rounded-2xl px-8 py-6 text-center shadow-xl shadow-black/50">
+            <p className="text-xl md:text-2xl font-bold uppercase tracking-wide text-orange-300">
+              End-to-End Encrypted • Local Only • Zero Leaks
             </p>
           </div>
         </div>
       </main>
 
-      {/* Footer – cut edge */}
-      <footer className="relative mt-20 border-t-8 border-black bg-black text-white py-8 text-center text-xl font-black uppercase tracking-widest">
-        <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-32 h-8 bg-yellow-400 transform -skew-x-12 border-4 border-black shadow-[8px_8px_0_#000]" />
-        VaultVani – Secure. Raw. No Compromise.
+      <footer className="relative mt-16 border-t border-white/10 bg-gray-950/50 backdrop-blur-md py-10 text-center text-lg font-semibold text-gray-400">
+        VaultVani — Secure. Private. Sovereign.
       </footer>
     </div>
   );

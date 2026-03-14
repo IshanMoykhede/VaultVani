@@ -2,9 +2,10 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
-import { toast } from "react-toastify";
+import { toast } from "react-hot-toast"; // assuming react-hot-toast is used consistently
 import { useAuth } from "../context/AuthContext";
 import { decryptData } from "../services/CryptoServices";
+import Header from "../components/Header";
 
 export default function Files() {
   const { folderId } = useParams();
@@ -12,7 +13,7 @@ export default function Files() {
 
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [folderName, setFolderName] = useState("Loading...");
+  const [folderName, setFolderName] = useState("Loading folder...");
 
   useEffect(() => {
     const fetchFiles = async () => {
@@ -22,7 +23,10 @@ export default function Files() {
           { withCredentials: true },
         );
         setFiles(res.data.documents || []);
-        setFolderName(`Folder ${folderId.substring(0, 8)}...`);
+
+        // Optional: fetch folder name if your API supports it
+        // For now using fallback
+        setFolderName(res.data.fileName);
       } catch (err) {
         console.error("Failed to load files:", err);
         toast.error("Failed to load files");
@@ -34,14 +38,10 @@ export default function Files() {
     fetchFiles();
   }, [folderId]);
 
-  // Decrypt & view/download file
   const handleViewFile = async (fileId, fileName) => {
     try {
-      console.log("[DEBUG] Starting download for fileId:", fileId);
-      console.log("[DEBUG] vaultKey available:", !!vaultKey);
-
       if (!vaultKey) {
-        toast.error("Vault key missing — re-login");
+        toast.error("Vault key missing — please re-login");
         return;
       }
 
@@ -49,83 +49,118 @@ export default function Files() {
         `http://localhost:8000/api/files/download/${fileId}`,
         {
           withCredentials: true,
-          responseType: "arraybuffer", // binary
+          responseType: "arraybuffer",
         },
       );
 
-      console.log("[DEBUG] Download response headers:", res.headers);
-
-      const ivArray = JSON.parse(res.headers["x-encrypted-iv"]);
-      console.log("[DEBUG] IV parsed:", ivArray);
-
+      const ivArray = JSON.parse(res.headers["x-encrypted-iv"] || "[]");
       const mimeType = res.headers["x-mime-type"] || "application/pdf";
-      console.log("[DEBUG] MIME type:", mimeType);
 
-      console.log("[DEBUG] Encrypted data length:", res.data.byteLength);
-
-      // Decrypt
       const decryptedBuffer = await decryptData(
         vaultKey,
-        res.data, // ArrayBuffer
+        res.data,
         new Uint8Array(ivArray),
       );
 
-      console.log(
-        "[DEBUG] Decrypted buffer length:",
-        decryptedBuffer.byteLength,
-      );
-
-      // Create Blob & open/view
       const blob = new Blob([decryptedBuffer], { type: mimeType });
       const url = URL.createObjectURL(blob);
-      window.open(url, "_blank"); // view in new tab
+      window.open(url, "_blank");
 
-      // Cleanup
-      URL.revokeObjectURL(url);
+      // Optional cleanup (browser will handle it, but good practice)
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
 
-      toast.success("File decrypted & opened");
+      toast.success("File decrypted and opened");
     } catch (err) {
-      console.error("[DEBUG] Full decryption error:", err);
-      toast.error("Failed to decrypt or open file: " + err.message);
+      console.error("Decryption / view error:", err);
+      toast.error("Failed to decrypt or open file");
     }
   };
 
-  if (loading) return <div className="text-center py-20">Loading files...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-4xl md:text-5xl font-black uppercase text-orange-400 animate-pulse tracking-tight">
+          Loading files...
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-white text-black font-mono p-6 md:p-12">
-      <h1 className="text-5xl font-black uppercase mb-12 text-center">
-        FILES IN FOLDER
-      </h1>
-
-      {files.length === 0 ? (
-        <p className="text-center text-2xl">No files in this folder</p>
-      ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          {files.map((file) => (
-            <div
-              key={file._id}
-              className="border-4 border-black p-8 shadow-[8px_8px_0_#000]"
-            >
-              <h3 className="text-3xl font-black uppercase mb-4 truncate">
-                {file.fileName}
-              </h3>
-              <p className="text-xl font-bold">
-                SIZE: {(file.fileSize / 1024 / 1024).toFixed(2)} MB
-              </p>
-              <p className="text-lg mt-3">
-                UPLOADED: {new Date(file.createdAt).toLocaleDateString()}
-              </p>
-              <button
-                onClick={() => handleViewFile(file._id, file.fileName)}
-                className="mt-6 w-full py-4 text-2xl font-black uppercase bg-black text-white border-4 border-black shadow-[8px_8px_0_#000] hover:bg-yellow-400 hover:text-black"
-              >
-                VIEW / DOWNLOAD
-              </button>
-            </div>
-          ))}
+    <div className="min-h-screen bg-black text-white font-mono antialiased">
+      <div className="pt-28 pb-20 px-6 md:px-12 lg:px-24 max-w-7xl mx-auto">
+        {/* Header */}
+        <Header />
+        <div className="mb-16 text-center">
+          <div className="inline-block bg-gray-900/30 backdrop-blur-xl border border-white/10 rounded-3xl px-10 py-8 shadow-2xl shadow-black/60">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-black uppercase tracking-tight text-orange-400 leading-tight mb-3">
+              {folderName}
+            </h1>
+            <p className="text-lg md:text-xl text-gray-300 font-medium">
+              Your encrypted documents
+            </p>
+          </div>
         </div>
-      )}
+
+        {files.length === 0 ? (
+          <div className="text-center py-20">
+            <p className="text-3xl md:text-4xl font-black uppercase text-orange-400 mb-6">
+              No documents yet
+            </p>
+            <p className="text-xl text-gray-400">
+              Upload files to this folder to see them here
+            </p>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {files.map((file) => (
+              <div
+                key={file._id}
+                className="
+                  group relative
+                  bg-gray-900/25 backdrop-blur-xl border border-white/10
+                  rounded-2xl p-8 shadow-xl shadow-black/50
+                  hover:shadow-orange-900/40 hover:border-orange-500/30
+                  hover:scale-[1.02] hover:brightness-110
+                  transition-all duration-300
+                "
+              >
+                <h3 className="text-2xl md:text-3xl font-black uppercase mb-4 text-orange-300 group-hover:text-orange-400 transition-colors truncate">
+                  {file.fileName}
+                </h3>
+
+                <div className="space-y-2 text-gray-300">
+                  <p className="text-lg font-medium">
+                    {(file.fileSize / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Uploaded {new Date(file.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => handleViewFile(file._id, file.fileName)}
+                  className="
+                    mt-6 w-full py-4 text-lg md:text-xl font-black uppercase rounded-2xl
+                    bg-orange-600/90 text-white border border-orange-400/30
+                    hover:bg-orange-500 hover:border-orange-300/50
+                    hover:shadow-orange-900/50 transition-all duration-300
+                    shadow-lg shadow-orange-900/40 flex items-center justify-center gap-3
+                  "
+                >
+                  View / Download
+                  <span className="text-xl">↗</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Footer consistency */}
+      <footer className="border-t border-white/10 bg-gray-950/50 backdrop-blur-md py-6 text-center text-gray-400 text-sm font-medium">
+        VaultVani — Documents Encrypted • Privacy Preserved
+      </footer>
     </div>
   );
 }

@@ -45,7 +45,7 @@ export default function ModelDownloader() {
 
         const url = BASE_URL + file;
         const response = await fetch(url);
-        if (!response.ok) throw new Error(`Failed ${file}`);
+        if (!response.ok) throw new Error(`Failed: ${file}`);
 
         const blob = await response.blob();
         blobs.push({ file, blob });
@@ -55,7 +55,7 @@ export default function ModelDownloader() {
 
       await saveModelBlobs(EMBEDDING_NAME, blobs);
       setEmbeddingDownloaded(true);
-      toast.success("Embedding model ready!");
+      toast.success("Embedding model downloaded");
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -67,7 +67,7 @@ export default function ModelDownloader() {
   async function downloadSLM() {
     setDownloading(true);
     setProgress(0);
-    setStatus("Initializing SLM...");
+    setStatus("Initializing model...");
     toast.loading("Downloading generation model...");
 
     try {
@@ -76,18 +76,17 @@ export default function ModelDownloader() {
       await CreateMLCEngine(SLM_MODEL, {
         initProgressCallback: (report) => {
           setStatus(report.text);
-          // Rough progress parsing from WebLLM string
           const match = report.text.match(/(\d+)%/);
           if (match) setProgress(parseInt(match[1]));
         },
       });
 
-      await saveModelBlobs(SLM_NAME, []); // WebLLM caches itself
+      await saveModelBlobs(SLM_NAME, []); // WebLLM handles caching
       setSlmDownloaded(true);
-      toast.success("Generation model ready!");
+      toast.success("Generation model ready");
     } catch (err) {
-      console.error("SLM error:", err);
-      toast.error("SLM failed: " + err.message);
+      console.error("SLM download error:", err);
+      toast.error("Failed to load model: " + err.message);
     } finally {
       setDownloading(false);
       setStatus("");
@@ -95,53 +94,78 @@ export default function ModelDownloader() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-8 max-w-lg mx-auto">
-      {/* Embedding Status */}
+    <div className="flex flex-col items-center gap-6 w-full max-w-md mx-auto">
+      {/* Embedding */}
       <div className="w-full">
         {embeddingDownloaded ? (
-          <div className="flex items-center justify-center gap-4 px-8 py-5 bg-black/45 backdrop-blur-2xl border border-purple-900/25 rounded-full shadow-xl">
-            <FaCheckCircle className="text-green-400 text-2xl animate-pulse" />
-            <span className="text-green-300 font-medium">Embedding Ready</span>
+          <div className="flex items-center justify-center gap-3 px-6 py-4 bg-gray-900/30 backdrop-blur-xl border border-orange-500/20 rounded-2xl shadow-xl shadow-black/40 text-green-400">
+            <FaCheckCircle className="text-2xl" />
+            <span className="font-medium text-lg">Embedding Model Ready</span>
           </div>
         ) : (
           <button
             onClick={downloadEmbedding}
             disabled={downloading}
-            className="w-full px-8 py-5 bg-gradient-to-r from-amber-700 via-purple-700 to-indigo-700 hover:from-amber-600 hover:via-purple-600 hover:to-indigo-600 text-white font-medium rounded-full transition-all shadow-lg hover:shadow-xl disabled:opacity-50 flex items-center justify-center gap-3"
+            className={`
+              w-full px-6 py-4 rounded-2xl font-medium text-lg
+              bg-orange-600/80 text-white border border-orange-400/30
+              hover:bg-orange-500 hover:border-orange-300/50
+              hover:shadow-orange-900/40 transition-all duration-300
+              shadow-lg shadow-orange-900/30 flex items-center justify-center gap-3
+              disabled:opacity-50 disabled:cursor-not-allowed
+            `}
           >
-            <FaDownload />
+            <FaDownload className="text-xl" />
             Download Embedding Model
           </button>
         )}
       </div>
 
-      {/* SLM Status */}
+      {/* SLM / Generation Model */}
       <div className="w-full">
         {slmDownloaded ? (
-          <div className="flex items-center justify-center gap-4 px-8 py-5 bg-black/45 backdrop-blur-2xl border border-purple-900/25 rounded-full shadow-xl">
-            <FaCheckCircle className="text-green-400 text-2xl animate-pulse" />
-            <span className="text-green-300 font-medium">Generation Ready</span>
+          <div className="flex items-center justify-center gap-3 px-6 py-4 bg-gray-900/30 backdrop-blur-xl border border-orange-500/20 rounded-2xl shadow-xl shadow-black/40 text-green-400">
+            <FaCheckCircle className="text-2xl" />
+            <span className="font-medium text-lg">Generation Model Ready</span>
           </div>
         ) : (
           <button
             onClick={downloadSLM}
             disabled={downloading}
-            className="w-full px-8 py-5 bg-gradient-to-r from-amber-700 via-purple-700 to-indigo-700 hover:from-amber-600 hover:via-purple-600 hover:to-indigo-600 text-white font-medium rounded-full transition-all shadow-lg hover:shadow-xl disabled:opacity-50 flex items-center justify-center gap-3"
+            className={`
+              w-full px-6 py-4 rounded-2xl font-medium text-lg
+              bg-orange-600/80 text-white border border-orange-400/30
+              hover:bg-orange-500 hover:border-orange-300/50
+              hover:shadow-orange-900/40 transition-all duration-300
+              shadow-lg shadow-orange-900/30 flex items-center justify-center gap-3
+              disabled:opacity-50 disabled:cursor-not-allowed
+            `}
           >
-            <FaDownload />
+            <FaDownload className="text-xl" />
             Download Generation Model (~650 MB)
           </button>
         )}
       </div>
 
+      {/* Status / Progress */}
       {downloading && (
-        <div className="text-amber-400 text-sm font-medium mt-4">
-          {status || `Downloading... ${progress}%`}
+        <div className="w-full text-center">
+          <div className="text-orange-400 font-medium mb-2">
+            {status || "Downloading..."}
+          </div>
+          {progress > 0 && progress < 100 && (
+            <div className="w-full bg-gray-800 rounded-full h-2.5 overflow-hidden">
+              <div
+                className="bg-orange-500 h-2.5 rounded-full transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          )}
         </div>
       )}
 
-      <p className="text-gray-500 text-sm text-center mt-4">
-        One-time downloads required for full offline AI
+      <p className="text-gray-500 text-sm text-center mt-4 leading-relaxed">
+        One-time download required for fully offline AI functionality
       </p>
     </div>
   );
