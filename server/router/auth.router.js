@@ -9,7 +9,9 @@ import {
   getUser,
   cryptoSetup,
   getSalt,
-  getVaultKeyData, // NEW: add this import
+  getVaultKeyData,
+  updateVaultKey,
+  recoveryMaterial, // NEW: add this import
 } from "../controllers/auth.controller.js";
 import auth from "../middleware/auth.middleware.js";
 
@@ -27,5 +29,7 @@ authRouter.get("/get-user", auth, getUser);
 authRouter.post("/crypto/setup", auth, cryptoSetup);
 authRouter.get("/salt/:userId", getSalt); // public ya auth se protect kar sakta hai
 authRouter.get("/vault-key/:userId", auth, getVaultKeyData); // protected
+authRouter.post("/update-vault-keys", updateVaultKey);
+authRouter.post("/recovery-material", recoveryMaterial);
 
 export default authRouter;

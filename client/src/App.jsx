@@ -17,6 +17,7 @@ import SecurityRouteForUploadDocument from "./components/SecurityRouteForUploadD
 import RAGDemo from "./pages/RagDemo.jsx";
 import Browse from "./pages/Browse.jsx";
 import Files from "./pages/Files.jsx";
+import { Toaster } from "react-hot-toast";
 // import BrowseDocuments from "./pages/BrowseDocuments.jsx";
 // import AIAssistant from "./pages/AIAssistant.jsx";
 // import toast from "react-hot-toast";
@@ -73,7 +74,17 @@ const App = () => {
           }
         />
       </Routes>
-      <ToastContainer position="top-center" autoClose={3000} />
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: "#1f2937",
+            color: "#fff",
+            border: "1px solid #f97316",
+          },
+        }}
+      />
     </>
   );
 };

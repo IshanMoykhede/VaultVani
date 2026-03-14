@@ -523,6 +523,74 @@ const getVaultKeyData = async (req, res) => {
   }
 };
 
+const recoveryMaterial = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) return res.status(400).json({ message: "Email is required" });
+
+  try {
+    const user = await userCollection.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Return ONLY recovery-related fields (zero-knowledge)
+    res.json({
+      recoverySalt: user.recoverySalt,
+      encryptedVaultKeyWithRecovery: user.encryptedVaultKeyWithRecovery,
+      recoveryIv: user.recoveryIv,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const updateVaultKey = async (req, res) => {
+  const {
+    email,
+    password, // ← plain new password from user
+    salt,
+    encryptedVaultKey,
+    iv,
+    recoverySalt,
+    encryptedVaultKeyWithRecovery,
+    recoveryIv,
+  } = req.body;
+
+  if (!email || !password || !salt || !encryptedVaultKey || !iv) {
+    return res.status(400).json({ message: "Missing required fields" });
+  }
+
+  try {
+    const user = await userCollection.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // === HASH THE NEW PASSWORD (Most Important) ===
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Update everything
+    user.password = hashedPassword; // ← Now hashed
+    user.salt = salt;
+    user.encryptedVaultKey = encryptedVaultKey;
+    user.iv = iv;
+    user.recoverySalt = recoverySalt;
+    user.encryptedVaultKeyWithRecovery = encryptedVaultKeyWithRecovery;
+    user.recoveryIv = recoveryIv;
+
+    await user.save();
+
+    res.json({ message: "Password and vault keys updated successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 export {
   signUp,
   signIn,
@@ -534,4 +602,6 @@ export {
   cryptoSetup,
   getSalt, // export the new function
   getVaultKeyData,
+  recoveryMaterial,
+  updateVaultKey,
 };
