@@ -14,7 +14,7 @@ import { useAuth } from "./context/AuthContext";
 import UploadDocument from "./pages/UploadDocument";
 import UploadDocumentDemo from "./pages/UploadDocumentDemo.jsx";
 import SecurityRouteForUploadDocument from "./components/SecurityRouteForUploadDocument.jsx";
-import RAGDemo from "./pages/RagDemo.jsx";
+import RAGDemo from "./pages/RAGDemo.jsx";
 import Browse from "./pages/Browse.jsx";
 import Files from "./pages/Files.jsx";
 import { Toaster } from "react-hot-toast";

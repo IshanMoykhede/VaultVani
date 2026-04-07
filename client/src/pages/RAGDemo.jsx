@@ -194,7 +194,7 @@ export default function RAGDemo() {
       console.groupEnd();
 
       // ── STAGE 4: INFERENCE ──
-      console.group("%c [4/4] LLM Inference (Gemma 2B) ", "color: #fb7185;");
+      console.group("%c [4/4] LLM Inference (Qwen 1.5B) ", "color: #fb7185;");
 
       // LOG THE PROMPT TRIMMING:
       // Remember: ragUtils.js trims context to 250 chars for memory safety!
@@ -289,7 +289,7 @@ export default function RAGDemo() {
               } border border-white/20`}
             />
             <span className="text-sm font-semibold uppercase tracking-wide">
-              {modelReady ? "Gemma 2B • Ready" : modelLoadText}
+              {modelReady ? "Qwen 2.5 (1.5B) • Ready" : modelLoadText}
             </span>
 
             {!modelReady &&

@@ -23,7 +23,7 @@ const encryptedFileSchema = new mongoose.Schema(
     },
 
     encryptedFile: {
-      type: Buffer, // 🔐 Encrypted binary data
+      type: Buffer, //  Encrypted binary data
       required: true,
     },
 

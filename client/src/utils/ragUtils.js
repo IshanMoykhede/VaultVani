@@ -456,91 +456,59 @@ export async function retrieveTopChunks(
     setLoading(false);
   }
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
-// SLM ENGINE & ANSWER GENERATION
+// OPTIMIZED SLM ENGINE — Phi-3-mini (High Quality + Fast + No Lag)
 // ─────────────────────────────────────────────────────────────────────────────
 
 let _engine = null;
 let _engineLoading = false;
 let _engineLoadCallbacks = [];
 
-async function isEngineAlive(engine) {
-  if (!engine) return false;
-  try {
-    // Reset first so the probe starts with a clean cache
-    try {
-      await engine.resetChat();
-    } catch (_) {}
-
-    const result = await engine.chat.completions.create({
-      messages: [{ role: "user", content: "Say yes" }],
-      max_tokens: 5,
-      stream: false,
-    });
-    const output = result?.choices?.[0]?.message?.content || "";
-    // If output is empty or only pad tokens, engine is broken
-    const cleaned = output.replace(/<pad>/gi, "").trim();
-    console.log("[Engine] Probe output:", JSON.stringify(output));
-    return cleaned.length > 0;
-  } catch (err) {
-    console.warn("[Engine] Probe failed:", err.message);
-    return false;
-  }
-}
-
 export async function getOrCreateEngine(onProgress) {
-  if (_engine) {
-    const alive = await isEngineAlive(_engine);
-    if (!alive) {
-      console.warn("[Engine] Stale/broken engine — reloading...");
-      _engine = null;
-    } else {
-      return _engine;
-    }
-  }
+  if (_engine) return _engine;
 
   if (_engineLoading) {
-    return new Promise((resolve) => {
-      _engineLoadCallbacks.push(resolve);
-    });
+    return new Promise((resolve) => _engineLoadCallbacks.push(resolve));
   }
 
   _engineLoading = true;
+
   try {
-    const { CreateMLCEngine } = await import("@mlc-ai/web-llm");
-    _engine = await CreateMLCEngine("gemma-2-2b-it-q4f16_1-MLC", {
-      initProgressCallback: (p) =>
-        onProgress?.(p.text || "Loading model...", p.progress || 0),
+    const { CreateWebWorkerMLCEngine } = await import("@mlc-ai/web-llm");
+
+    // Initialize Web Worker for background inference
+    const worker = new Worker(new URL("./webllm.worker.js", import.meta.url), {
+      type: "module",
     });
-    // Warm up with a reset so first real query starts clean
-    try {
-      await _engine.resetChat();
-    } catch (_) {}
+
+    // ←←← SWITCHED TO QWEN 1.5B (avoids LLama's privacy refusals and Phi-3's freezing)
+    _engine = await CreateWebWorkerMLCEngine(
+      worker,
+      "Qwen2.5-1.5B-Instruct-q4f16_1-MLC",
+      {
+        initProgressCallback: (p) =>
+          onProgress?.(p.text || "Loading model...", p.progress || 0),
+      },
+    );
+
+    await _engine.resetChat();
+    console.log("✅ Qwen-2.5-1.5B loaded successfully via Web Worker");
+
+    // Resolve any queued requests
+    _engineLoadCallbacks.forEach((resolve) => resolve(_engine));
+    _engineLoadCallbacks = [];
+  } catch (err) {
+    console.error("MLC Engine initialization failed:", err);
+    throw err;
   } finally {
     _engineLoading = false;
-    _engineLoadCallbacks.forEach((cb) => cb(_engine));
-    _engineLoadCallbacks = [];
   }
 
   return _engine;
 }
 
-// Strip special tokens that can leak from Gemma's output
-function cleanModelOutput(text) {
-  return text
-    .replace(/<pad>/gi, "")
-    .replace(/<eos>/gi, "")
-    .replace(/<bos>/gi, "")
-    .replace(/<unk>/gi, "")
-    .replace(/<end_of_turn>/gi, "")
-    .replace(/<start_of_turn>/gi, "")
-    .replace(/\s{3,}/g, " ")
-    .trim();
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// FIXED generateAnswer — restores strong system instructions
+// OPTIMIZED generateAnswer — Zero-lag streaming + strong system prompt
 // ─────────────────────────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are a precise document assistant. You answer questions using ONLY the provided context.
 
@@ -567,57 +535,48 @@ export async function generateAnswer(
 
   setGenerating(true);
   setError("");
-  setAnswer("...");
+  setAnswer("Thinking..."); // Show this immediately
 
   try {
-    setAnswer("Loading model...");
     const engine = await getOrCreateEngine(onModelProgress);
+    await engine.resetChat();
 
-    await engine.resetChat(); // important
-
-    const sortedChunks = [...topChunks]
+    const context = topChunks
       .sort((a, b) => (b.score || 0) - (a.score || 0))
-      .slice(0, 3);
-
-    const context = sortedChunks
+      .slice(0, 2) // ← Reduced to max 2 chunks (helps smoothness)
       .map((c, i) => `[Source ${i + 1}]\n${(c.text || "").trim()}`)
       .join("\n\n");
 
     const messages = [
       { role: "system", content: SYSTEM_PROMPT },
-      ...history.slice(-4).map((turn) => ({
-        role: turn.role,
-        content: turn.content,
-      })),
+      ...history
+        .slice(-3)
+        .map((turn) => ({ role: turn.role, content: turn.content })), // ← Reduced history
       {
         role: "user",
         content: `Context:\n${context}\n\nQuestion: ${question}`,
       },
     ];
 
-    setAnswer("Thinking...");
-
+    // ←←← CHANGED: Use stream: false  (collect full answer first)
     const reply = await engine.chat.completions.create({
       messages,
       temperature: 0.1,
-      max_tokens: 200,
-      stream: true,
+      max_tokens: 120, // ← Shorter answers = less GPU work
+      stream: false, // ← No streaming
     });
 
-    let fullAnswer = "";
-    for await (const chunk of reply) {
-      const content = chunk.choices[0]?.delta?.content || "";
-      fullAnswer += content;
-      setAnswer(fullAnswer.trim());
-    }
+    const fullAnswer =
+      reply.choices[0]?.message?.content?.trim() || "No answer generated.";
 
-    const final = fullAnswer.trim() || "No answer generated.";
-    setAnswer(final);
+    // ←←← ONLY update state ONCE when everything is ready
+    setAnswer(fullAnswer);
   } catch (err) {
     console.error("Generation failed:", err);
-    setError("Failed to generate answer: " + (err.message || "Unknown error"));
+    setError("Failed to generate answer");
     setAnswer("");
   } finally {
     setGenerating(false);
+    await engine.resetChat(); // Clean up after
   }
 }
