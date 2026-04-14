@@ -484,7 +484,7 @@ export async function getOrCreateEngine(onProgress) {
     // ←←← SWITCHED TO QWEN 1.5B (avoids LLama's privacy refusals and Phi-3's freezing)
     _engine = await CreateWebWorkerMLCEngine(
       worker,
-      "Qwen2.5-1.5B-Instruct-q4f16_1-MLC",
+      "Qwen2.5-0.5B-Instruct-q4f16_1-MLC",
       {
         initProgressCallback: (p) =>
           onProgress?.(p.text || "Loading model...", p.progress || 0),
@@ -492,7 +492,7 @@ export async function getOrCreateEngine(onProgress) {
     );
 
     await _engine.resetChat();
-    console.log("✅ Qwen-2.5-1.5B loaded successfully via Web Worker");
+    console.log("✅ Qwen-2.5-0.5B loaded successfully via Web Worker");
 
     // Resolve any queued requests
     _engineLoadCallbacks.forEach((resolve) => resolve(_engine));
@@ -510,14 +510,21 @@ export async function getOrCreateEngine(onProgress) {
 // ─────────────────────────────────────────────────────────────────────────────
 // OPTIMIZED generateAnswer — Zero-lag streaming + strong system prompt
 // ─────────────────────────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are a precise document assistant. You answer questions using ONLY the provided context.
+// ─────────────────────────────────────────────────────────────────────────────
+// OPTIMIZED generateAnswer — Only Top 3 Chunks + No Previous Messages
+// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// generateAnswer — Only chunks with score > 0.50 + Top 3
+// ─────────────────────────────────────────────────────────────────────────────
+const SYSTEM_PROMPT = `Answer using only the context.
 
-Rules:
-- Extract exact values (numbers, names, dates) directly from context
-- If the answer is a number or specific value, state it directly
-- If the information is not in the provided context, say exactly: "This information is not in your documents."
-- Never guess or use outside knowledge
-- Keep answers short and direct`;
+1. If exact answer is found → return it clearly.
+2. If unsure → return the most relevant values (numbers, marks, percentage, etc).
+3. Do NOT return document names, headings, or labels.
+4. Do NOT blindly match keys. If values look incorrect or mismatched, say:
+   "I found this: {value}, but it may be incorrect. Please cross check and what you feel this should be correct tell that as well."
+5. If nothing useful found → "This information is not in your documents."
+6. Keep answer short. `;
 
 export async function generateAnswer(
   question,
@@ -535,48 +542,58 @@ export async function generateAnswer(
 
   setGenerating(true);
   setError("");
-  setAnswer("Thinking..."); // Show this immediately
+  setAnswer("Thinking...");
+
+  let engine = null;
 
   try {
-    const engine = await getOrCreateEngine(onModelProgress);
+    engine = await getOrCreateEngine(onModelProgress);
     await engine.resetChat();
 
-    const context = topChunks
+    // ←←← NEW FILTER: Only keep chunks with score > 0.50 (50%)
+    const relevantChunks = topChunks
+      .filter((chunk) => (chunk.score || 0) > 0.4) // Only > 50% relevance
       .sort((a, b) => (b.score || 0) - (a.score || 0))
-      .slice(0, 2) // ← Reduced to max 2 chunks (helps smoothness)
-      .map((c, i) => `[Source ${i + 1}]\n${(c.text || "").trim()}`)
-      .join("\n\n");
+      .slice(0, 3); // Max 3 chunks
+
+    let context = "";
+
+    if (relevantChunks.length > 0) {
+      context = relevantChunks
+        .map((c, i) => `[Source ${i + 1}]\n${(c.text || "").trim()}`)
+        .join("\n\n---\n\n");
+    } else {
+      context = "No relevant information found in the documents.";
+    }
 
     const messages = [
       { role: "system", content: SYSTEM_PROMPT },
-      ...history
-        .slice(-3)
-        .map((turn) => ({ role: turn.role, content: turn.content })), // ← Reduced history
       {
         role: "user",
-        content: `Context:\n${context}\n\nQuestion: ${question}`,
+        content: `I am sending you the two thing context and a question please find the answer from the context and according to question and then answer to me , Context:\n${context}\n\nQuestion: ${question}`,
       },
     ];
 
-    // ←←← CHANGED: Use stream: false  (collect full answer first)
     const reply = await engine.chat.completions.create({
       messages,
       temperature: 0.1,
-      max_tokens: 120, // ← Shorter answers = less GPU work
-      stream: false, // ← No streaming
+      max_tokens: 120,
+      stream: false,
     });
 
     const fullAnswer =
-      reply.choices[0]?.message?.content?.trim() || "No answer generated.";
+      reply.choices[0]?.message?.content?.trim() ||
+      "This information is not in your documents.";
 
-    // ←←← ONLY update state ONCE when everything is ready
     setAnswer(fullAnswer);
   } catch (err) {
     console.error("Generation failed:", err);
-    setError("Failed to generate answer");
+    setError("Failed to generate answer. Please try again.");
     setAnswer("");
   } finally {
     setGenerating(false);
-    await engine.resetChat(); // Clean up after
+    if (engine) {
+      await engine.resetChat().catch(() => {});
+    }
   }
 }

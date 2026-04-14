@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+easyocr
+pymupdf
+python-multipart
+pydantic
+httpx
+python-dotenv

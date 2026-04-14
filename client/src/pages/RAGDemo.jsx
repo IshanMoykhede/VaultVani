@@ -9,23 +9,18 @@ import {
   getOrCreateEngine,
 } from "../utils/ragUtils.js";
 import { decryptData } from "../services/CryptoServices";
-import { getAllEncryptedChunks } from "../services/db";
+import axios from "axios";
+import { FaRobot, FaTrash, FaPaperPlane } from "react-icons/fa";
 
 export default function RAGDemo() {
   const { vaultKey } = useAuth();
 
-  const [embeddingLoading, setEmbeddingLoading] = useState(false);
-  const [modelStatus, setModelStatus] = useState("");
-  const [error, setError] = useState("");
-  const [retrievalLoading, setRetrievalLoading] = useState(false);
-  const [topChunks, setTopChunks] = useState([]);
-
-  const [history, setHistory] = useState([]);
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [vaultChunks, setVaultChunks] = useState([]);
   const [hasDocuments, setHasDocuments] = useState(false);
+  const [error, setError] = useState("");
 
   const [modelReady, setModelReady] = useState(false);
   const [modelLoadText, setModelLoadText] = useState("Initializing model...");
@@ -33,81 +28,142 @@ export default function RAGDemo() {
 
   const messagesEndRef = useRef(null);
 
+  // ====================== CONSOLE LOGGER ======================
+  const log = (title, data = null, type = "info") => {
+    const styles = {
+      info: "color: #67e8f9; font-weight: 600;",
+      success: "color: #4ade80; font-weight: 700;",
+      warning: "color: #fbbf24; font-weight: 700;",
+      error: "color: #f87171; font-weight: 700;",
+      step: "color: #c4b5fd; font-size: 15px; font-weight: 700; background: #1f2937; padding: 4px 10px; border-radius: 6px;",
+    };
+
+    const emoji = {
+      info: "🔹",
+      success: "✅",
+      warning: "⚠️",
+      error: "❌",
+      step: "🚀",
+    };
+
+    console.groupCollapsed(
+      `%c${emoji[type] || "🔹"} ${title}`,
+      styles[type] || styles.info,
+    );
+
+    console.log(
+      `%c⏱ ${new Date().toLocaleTimeString()}`,
+      "color:#888; font-size:13px;",
+    );
+
+    if (data) {
+      console.dir(data, { depth: null }); // This ensures full object is visible
+    }
+    console.groupEnd();
+  };
+
+  // Load vault chunks
   useEffect(() => {
     const loadVaultChunks = async () => {
+      log("1. Loading Vault Chunks from Backend", null, "step");
       try {
-        const chunksFromDB = await getAllEncryptedChunks();
+        const res = await axios.get("http://localhost:8000/api/chunks", {
+          withCredentials: true,
+        });
+
+        const chunksFromDB = res.data.chunks || [];
+
+        log(
+          "2. Chunks Received from Server",
+          {
+            totalChunks: chunksFromDB.length,
+            hasDocuments: chunksFromDB.length > 0,
+          },
+          "success",
+        );
+
         if (chunksFromDB.length === 0) {
-          toast.info("No documents uploaded yet — go to Upload page first");
           setHasDocuments(false);
+          log("3. No documents found in vault", null, "warning");
         } else {
           setVaultChunks(chunksFromDB);
           setHasDocuments(true);
+          log(
+            "3. Vault Loaded Successfully",
+            {
+              documentCount: chunksFromDB.length,
+              sampleChunkIds: chunksFromDB.slice(0, 3).map((c) => c.id),
+            },
+            "success",
+          );
         }
       } catch (err) {
-        console.error("Failed to load vault chunks:", err);
-        toast.error("Failed to load vault data");
+        log(
+          "ERROR: Failed to load vault chunks",
+          { message: err.message },
+          "error",
+        );
+        toast.error("Failed to sync secure documents from server");
       }
     };
+
     loadVaultChunks();
   }, []);
 
+  // Preload model
   useEffect(() => {
     const preloadModel = async () => {
+      log("MODEL: Starting Qwen 0.5B Preload", null, "step");
+
       try {
-        setModelLoadText("Downloading model (first time only)...");
         await getOrCreateEngine((text, progress) => {
+          const percent = Math.round((progress || 0) * 100);
           setModelLoadText(text);
-          setModelLoadProgress(Math.round((progress || 0) * 100));
+          setModelLoadProgress(percent);
+          log("MODEL: Loading Progress", {
+            status: text,
+            progress: `${percent}%`,
+          });
         });
+
         setModelReady(true);
-        setModelLoadText("Model ready");
-        setModelLoadProgress(100);
+        setModelLoadText("Qwen 0.5B • Ready");
+        log("MODEL: Successfully Loaded & Ready", null, "success");
       } catch (err) {
-        console.error("Model preload failed:", err);
-        setModelLoadText("Model load failed — will retry on first question");
+        log("ERROR: Model preload failed", err.message, "error");
         setModelReady(false);
       }
     };
     preloadModel();
   }, []);
 
+  // Auto scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // ====================== HANDLE SEND - FULL DECRYPTED CHUNK VISIBLE ======================
   const handleSend = async () => {
-    if (!inputValue.trim() || isGenerating) return;
+    const userQuery = inputValue.trim();
 
+    log("🚀 NEW QUERY PROCESSING STARTED", { userQuery }, "step");
+
+    if (!userQuery || isGenerating) return;
     if (!hasDocuments) {
-      toast.warn("No documents in vault — upload first");
+      toast.warn("Please upload documents first");
       return;
     }
     if (!vaultKey) {
-      toast.error("Vault key missing — re-login");
+      toast.error("Vault key missing");
       return;
     }
 
-    const userQuery = inputValue.trim();
+    // Add user message
+    setMessages((prev) => [...prev, { role: "user", content: userQuery }]);
     setInputValue("");
     setError("");
 
-    // --- LOGGING UI SETUP ---
-    console.clear();
-    console.log(
-      "%c 🛰️ VAULT RAG INITIATED ",
-      "background: #f97316; color: white; font-weight: bold; border-radius: 4px;",
-    );
-    console.log(
-      `%cQUERY:%c "${userQuery}"`,
-      "color: #94a3b8;",
-      "color: #f1f5f9; font-weight: bold;",
-    );
-
-    const userMessage = { role: "user", content: userQuery };
-    setMessages((prev) => [...prev, userMessage]);
-    setHistory((prev) => [...prev, userMessage]);
-
+    // Add loading message
     setMessages((prev) => [
       ...prev,
       { role: "assistant", content: "", isLoading: true },
@@ -115,64 +171,58 @@ export default function RAGDemo() {
     setIsGenerating(true);
 
     try {
-      // ── STAGE 1: EMBEDDING ──
-      console.group("%c [1/4] Vectorization ", "color: #38bdf8;");
-      console.log("Status: Generating embedding for user query...");
-      const queryEmbedResult = await generateEmbeddings(
-        [userQuery],
-        setEmbeddingLoading,
-        setModelStatus,
-        setError,
-      );
-      const queryEmbedding = queryEmbedResult[0]?.embedding;
-      console.log(
-        "Vector Output:",
-        queryEmbedding?.slice(0, 5),
-        "... (Length: " + queryEmbedding?.length + ")",
-      );
-      console.groupEnd();
+      log("=== RAG PIPELINE STARTED ===", null, "step");
 
-      // ── STAGE 2: RETRIEVAL ──
-      console.group("%c [2/4] Semantic Search ", "color: #818cf8;");
       const indexedItems = vaultChunks
         .filter((c) => c?.id != null && Array.isArray(c.embedding))
         .map((c) => ({ id: c.id, embedding: c.embedding }));
 
-      console.log(
-        `Database: Scanning ${indexedItems.length} encrypted chunks.`,
-      );
-
       let retrievedChunks = [];
+
       await retrieveTopChunks(
         userQuery,
         indexedItems,
-        setRetrievalLoading,
+        () => {},
         (chunks) => {
           retrievedChunks = chunks;
-          setTopChunks(chunks);
+          log(
+            "Retrieval Completed",
+            { retrievedCount: chunks.length },
+            "success",
+          );
         },
         setError,
       );
 
       if (retrievedChunks.length === 0) {
-        console.warn("Result: 0 matches found above relevance threshold.");
-        console.groupEnd();
-        // ... handle no info msg
+        log("No relevant chunks found", null, "warning");
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            role: "assistant",
+            content: "This information is not in your documents.",
+            isLoading: false,
+          };
+          return updated;
+        });
         return;
       }
-      console.table(
-        retrievedChunks.map((c) => ({
-          "Chunk ID": c.id,
-          "Similarity Score": c.score.toFixed(4),
-        })),
-      );
-      console.groupEnd();
 
-      // ── STAGE 3: DECRYPTION ──
-      console.group("%c [3/4] Secure Decryption ", "color: #4ade80;");
+      // ==================== DECRYPTION - FULL TEXT VISIBLE ====================
+      log(
+        "Starting Decryption - Full Chunk Text Will Be Visible",
+        {
+          chunksToDecrypt: retrievedChunks.length,
+        },
+        "step",
+      );
+
       const decryptedTop = [];
-      for (const match of retrievedChunks) {
+
+      for (let i = 0; i < retrievedChunks.length; i++) {
+        const match = retrievedChunks[i];
         const dbChunk = vaultChunks.find((c) => c.id === match.id);
+
         if (!dbChunk) continue;
 
         try {
@@ -181,40 +231,46 @@ export default function RAGDemo() {
             dbChunk.encryptedText,
             new Uint8Array(dbChunk.iv),
           );
+
           const plainText = new TextDecoder().decode(decryptedBuffer);
+
           decryptedTop.push({ text: plainText, score: match.score });
-          console.log(`%c✔ Decrypted Chunk ${match.id}`, "color: #22c55e;");
-        } catch (e) {
-          console.log(
-            `%c✘ Failed to decrypt Chunk ${match.id}`,
-            "color: #ef4444;",
+
+          // 🔥 FULL DECRYPTED CHUNK TEXT IS NOW FULLY VISIBLE
+          log(
+            `✅ FULL DECRYPTED CHUNK ${i + 1}`,
+            {
+              chunkId: match.id,
+              relevanceScore: match.score ? match.score.toFixed(4) : "N/A",
+              fullDecryptedText: plainText, // ← Entire text is shown
+              textLength: plainText.length,
+            },
+            "success",
           );
+        } catch (e) {
+          log(`❌ Decryption Failed for Chunk ${match.id}`, e.message, "error");
         }
       }
-      console.groupEnd();
 
-      // ── STAGE 4: INFERENCE ──
-      console.group("%c [4/4] LLM Inference (Qwen 1.5B) ", "color: #fb7185;");
-
-      // LOG THE PROMPT TRIMMING:
-      // Remember: ragUtils.js trims context to 250 chars for memory safety!
-      const topText = decryptedTop[0]?.text || "";
-      console.log(
-        "%cRAW CONTEXT PASSING TO MODEL:",
-        "color: #9ca3af; font-style: italic;",
+      log(
+        "Decryption Completed",
+        {
+          totalDecryptedChunks: decryptedTop.length,
+        },
+        "success",
       );
-      console.log(decryptedTop);
 
-      console.log(
-        "%cSTATUS:%c Streaming response...",
-        "color: #9ca3af;",
-        "color: #fb7185; animate: pulse;",
-      );
+      if (decryptedTop.length === 0) {
+        throw new Error("Decryption failed for all chunks");
+      }
+
+      // Generate Answer
+      log("Generating Final Answer with Qwen 0.5B...", null, "step");
 
       await generateAnswer(
         userQuery,
         decryptedTop,
-        history,
+        [],
         setIsGenerating,
         (answer) => {
           setMessages((prev) => {
@@ -228,27 +284,22 @@ export default function RAGDemo() {
           });
         },
         setError,
-        (text, progress) => {
-          // Track engine loading if not cached
-          if (progress < 1) {
-            console.log(
-              `Model Progress: ${text} (${(progress * 100).toFixed(0)}%)`,
-            );
-          }
-        },
+        () => {},
       );
-      console.groupEnd();
-      console.log(
-        "%c 🏁 CYCLE COMPLETE ",
-        "background: #22c55e; color: white; font-weight: bold; border-radius: 4px;",
-      );
+
+      log("🎉 RAG PIPELINE COMPLETED SUCCESSFULLY", null, "success");
     } catch (err) {
-      console.group(
-        "%c 🚨 CRITICAL RAG ERROR ",
-        "background: #ef4444; color: white; font-weight: bold;",
-      );
-      console.error(err);
-      console.groupEnd();
+      log("❌ RAG PIPELINE FAILED", err.message, "error");
+      setError("Something went wrong.");
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          role: "assistant",
+          content: "Failed to generate answer.",
+          isLoading: false,
+        };
+        return updated;
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -263,189 +314,130 @@ export default function RAGDemo() {
 
   const handleClearChat = () => {
     setMessages([]);
-    setHistory([]);
-    setTopChunks([]);
     setError("");
   };
 
   return (
-    <div className="min-h-screen bg-black text-white font-mono antialiased flex flex-col">
-      {/* Header / Status Bar */}
-      <div className="bg-gray-900/30 backdrop-blur-xl border-b border-white/10 py-5 px-6 md:px-12 shadow-lg shadow-black/40">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="text-center md:text-left">
-            <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight text-orange-400">
-              Vault Chat
-            </h1>
-            <p className="text-base md:text-lg text-gray-300 mt-1">
-              Ask anything — answers from your documents only
-            </p>
-          </div>
-
+    <div className="min-h-screen bg-zinc-950 text-white flex flex-col font-sans">
+      {/* Header */}
+      <div className="bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-800 py-5 px-6 sticky top-0 z-50">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div
-              className={`w-3 h-3 rounded-full ${
-                modelReady ? "bg-green-400" : "bg-orange-400 animate-pulse"
-              } border border-white/20`}
-            />
-            <span className="text-sm font-semibold uppercase tracking-wide">
-              {modelReady ? "Qwen 2.5 (1.5B) • Ready" : modelLoadText}
-            </span>
-
-            {!modelReady &&
-              modelLoadProgress > 0 &&
-              modelLoadProgress < 100 && (
-                <div className="w-32 bg-gray-800 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="bg-orange-500 h-full transition-all duration-300"
-                    style={{ width: `${modelLoadProgress}%` }}
-                  />
-                </div>
-              )}
+            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl flex items-center justify-center">
+              <FaRobot className="text-2xl text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Vault Chat</h1>
+              <p className="text-sm text-zinc-400">
+                Private • Offline • Document-only
+              </p>
+            </div>
           </div>
 
-          {messages.length > 0 && (
-            <button
-              onClick={handleClearChat}
-              className="
-                px-5 py-2.5 rounded-xl text-sm font-semibold uppercase
-                bg-gray-800 border border-white/20 hover:bg-gray-700
-                hover:border-orange-500/40 transition-all duration-200
-              "
-            >
-              Clear Chat
-            </button>
-          )}
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-3 h-3 rounded-full ${modelReady ? "bg-emerald-500" : "bg-amber-500"}`}
+              />
+              <span className="text-sm font-medium text-zinc-300">
+                {modelReady ? "Qwen 0.5B • Ready" : modelLoadText}
+              </span>
+            </div>
+
+            {messages.length > 0 && (
+              <button
+                onClick={handleClearChat}
+                className="flex items-center gap-2 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium border border-zinc-700 hover:border-orange-500/30"
+              >
+                <FaTrash className="text-orange-400" /> Clear
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-6 md:p-12 space-y-8">
-        {messages.length === 0 && (
-          <div className="text-center py-32">
-            <h2 className="text-4xl md:text-5xl font-black uppercase text-orange-400 mb-6">
-              Ask your first question
-            </h2>
-            <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-              Your uploaded documents are indexed and ready. Type naturally —
-              answers come only from your vault.
-            </p>
-            {!modelReady && (
-              <p className="mt-6 text-lg text-orange-300/80">
-                Model is loading in background — will be ready soon
+      <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-[radial-gradient(#27272a_1px,transparent_1px)] bg-[length:40px_40px]">
+        <div className="max-w-4xl mx-auto space-y-8 pb-32">
+          {messages.length === 0 && (
+            <div className="text-center py-24">
+              <div className="mx-auto w-24 h-24 bg-gradient-to-br from-orange-500/10 to-amber-500/10 rounded-3xl flex items-center justify-center mb-8 border border-orange-500/20">
+                <FaRobot className="text-6xl text-orange-400/70" />
+              </div>
+              <h2 className="text-5xl font-bold tracking-tighter mb-4">
+                Ask anything
+              </h2>
+              <p className="text-xl text-zinc-400">
+                Your documents are securely indexed.
               </p>
-            )}
-          </div>
-        )}
+            </div>
+          )}
 
-        {messages.map((msg, index) => (
-          <div
-            key={index}
-            className={`flex ${
-              msg.role === "user" ? "justify-end" : "justify-start"
-            }`}
-          >
+          {messages.map((msg, index) => (
             <div
-              className={`
-                max-w-3xl px-6 py-5 rounded-2xl backdrop-blur-lg border
+              key={index}
+              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`max-w-2xl px-7 py-6 rounded-3xl text-[17px] leading-relaxed shadow-xl shadow-black/60 backdrop-blur-md
                 ${
                   msg.role === "user"
-                    ? "bg-orange-600/20 border-orange-500/30 text-white"
-                    : "bg-gray-900/40 border-white/10 text-gray-200"
-                }
-                shadow-xl shadow-black/40
-              `}
-            >
-              {msg.isLoading ? (
-                <div className="flex items-center gap-3">
-                  <div className="w-5 h-5 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-lg font-medium text-orange-300">
-                    {embeddingLoading
-                      ? "Embedding query..."
-                      : retrievalLoading
-                        ? "Searching vault..."
-                        : "Generating answer..."}
-                  </span>
-                </div>
-              ) : (
-                <div className="text-base md:text-lg leading-relaxed whitespace-pre-wrap">
-                  {msg.content}
-                </div>
-              )}
+                    ? "bg-gradient-to-br from-orange-600 to-orange-700 text-white rounded-br-none"
+                    : "bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-bl-none"
+                }`}
+              >
+                {msg.isLoading ? (
+                  <div className="flex items-center gap-4 py-2">
+                    <div className="w-5 h-5 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-orange-300">Thinking...</span>
+                  </div>
+                ) : (
+                  <div className="whitespace-pre-wrap break-words">
+                    {msg.content}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
 
-        {error && (
-          <div className="bg-red-900/30 border border-red-500/40 rounded-2xl p-6 text-center backdrop-blur-lg">
-            <p className="text-lg font-medium text-red-300">{error}</p>
-          </div>
-        )}
+          {error && (
+            <div className="max-w-2xl mx-auto bg-red-950/50 border border-red-500/30 rounded-3xl p-6 text-center text-red-400">
+              {error}
+            </div>
+          )}
 
-        <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-white/10 bg-gray-950/60 backdrop-blur-xl py-6 px-6">
-        <div className="max-w-5xl mx-auto flex flex-col gap-4">
-          <div className="flex gap-4">
-            <textarea
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                !hasDocuments
-                  ? "Upload documents first..."
-                  : !modelReady
-                    ? "Model is loading, please wait..."
-                    : "Ask anything about your documents..."
-              }
-              disabled={isGenerating || !hasDocuments || !modelReady}
-              rows={1}
-              className="
-                flex-1 px-6 py-4 text-base bg-gray-900/50 border border-white/10
-                rounded-2xl focus:border-orange-500/50 focus:outline-none
-                resize-none disabled:opacity-50 transition-all duration-200
-                placeholder-gray-500 shadow-inner shadow-black/30
-              "
-            />
+      <div className="border-t border-zinc-800 bg-zinc-950/90 backdrop-blur-2xl py-6 px-6 sticky bottom-0 z-50">
+        <div className="max-w-4xl mx-auto relative">
+          <textarea
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              !hasDocuments
+                ? "Upload documents first..."
+                : !modelReady
+                  ? "Model is loading..."
+                  : "Ask anything about your documents..."
+            }
+            disabled={isGenerating || !hasDocuments || !modelReady}
+            rows={1}
+            className="w-full resize-y bg-zinc-900 border border-zinc-700 focus:border-orange-500 rounded-3xl px-7 py-5 pr-20 text-base placeholder-zinc-500 focus:outline-none min-h-[58px] max-h-[180px]"
+          />
 
-            <button
-              onClick={handleSend}
-              disabled={
-                !inputValue.trim() ||
-                isGenerating ||
-                !hasDocuments ||
-                !modelReady
-              }
-              className="
-                px-8 py-4 rounded-2xl font-semibold text-base uppercase
-                bg-orange-600/90 text-white border border-orange-400/30
-                hover:bg-orange-500 hover:border-orange-300/50
-                hover:shadow-orange-900/50 transition-all duration-300
-                shadow-lg shadow-orange-900/40 disabled:opacity-50
-                disabled:cursor-not-allowed flex items-center gap-3
-              "
-            >
-              Ask
-              <span className="text-xl">→</span>
-            </button>
-          </div>
-
-          {history.length > 0 && (
-            <div className="text-sm text-gray-500 flex items-center gap-4 justify-center">
-              <span>
-                Conversation memory: {Math.floor(history.length / 2)} turn
-                {Math.floor(history.length / 2) !== 1 ? "s" : ""} remembered
-              </span>
-              <button
-                onClick={handleClearChat}
-                className="text-orange-400 hover:text-orange-300 transition-colors underline"
-              >
-                Clear
-              </button>
-            </div>
-          )}
+          <button
+            onClick={handleSend}
+            disabled={
+              !inputValue.trim() || isGenerating || !hasDocuments || !modelReady
+            }
+            className="absolute bottom-4 right-4 bg-orange-600 hover:bg-orange-500 disabled:bg-zinc-700 p-3.5 rounded-2xl text-white transition-all"
+          >
+            <FaPaperPlane className="text-xl" />
+          </button>
         </div>
       </div>
     </div>

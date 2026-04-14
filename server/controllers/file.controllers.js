@@ -1,5 +1,6 @@
 import filesCollection from "../models/files.model.js";
 import folderCollection from "../models/folder.model.js";
+import { Chunk } from "../models/chunk.model.js";
 import mongoose from "mongoose";
 
 export const uploadEncryptedDocument = async (req, res) => {
@@ -98,5 +99,38 @@ export const downloadEncryptedFile = async (req, res) => {
   } catch (error) {
     console.error("Download encrypted file error:", error);
     res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Cascading Chunk & Document Deletion natively
+export const deleteDocument = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.id;
+
+    // 1. Locate the file visually to intercept its folder location naturally
+    const doc = await filesCollection.findOne({ _id: id, userId });
+    if (!doc) {
+      return res.status(404).json({ success: false, message: "Document strictly not found" });
+    }
+    
+    // 2. Extrapolate document from folder tree arrays natively preventing ghost references
+    if (doc.folderId) {
+      await folderCollection.updateOne(
+        { _id: doc.folderId, userId },
+        { $pull: { fileStored: doc._id } }
+      );
+    }
+
+    // 3. Delete Document core safely
+    await filesCollection.deleteOne({ _id: id, userId });
+
+    // 4. Cascade wipe all RAG indices mapped identically to that Mongo document string
+    await Chunk.deleteMany({ documentId: id.toString(), userId });
+
+    res.status(200).json({ success: true, message: "Safely erased document & contextual AI matrices completely" });
+  } catch (error) {
+    console.error("Deletion error:", error);
+    res.status(500).json({ success: false, message: "Deletion algorithm structurally failed" });
   }
 };

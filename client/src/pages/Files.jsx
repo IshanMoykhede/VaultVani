@@ -76,6 +76,22 @@ export default function Files() {
     }
   };
 
+  const handleDeleteFile = async (fileId) => {
+    if (!window.confirm("Are you absolutely sure you want to permanently delete this document and its AI memory indices globally?")) return;
+    
+    try {
+      await axios.delete(`http://localhost:8000/api/files/delete/${fileId}`, {
+        withCredentials: true,
+      });
+      // Splice entirely from arrays preventing refreshes natively
+      setFiles((prev) => prev.filter((f) => f._id !== fileId));
+      toast.success("Document cleanly deleted globally");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to delete natively");
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -138,19 +154,33 @@ export default function Files() {
                   </p>
                 </div>
 
-                <button
-                  onClick={() => handleViewFile(file._id, file.fileName)}
-                  className="
-                    mt-6 w-full py-4 text-lg md:text-xl font-black uppercase rounded-2xl
-                    bg-orange-600/90 text-white border border-orange-400/30
-                    hover:bg-orange-500 hover:border-orange-300/50
-                    hover:shadow-orange-900/50 transition-all duration-300
-                    shadow-lg shadow-orange-900/40 flex items-center justify-center gap-3
-                  "
-                >
-                  View / Download
-                  <span className="text-xl">↗</span>
-                </button>
+                <div className="flex gap-4 mt-6">
+                  <button
+                    onClick={() => handleViewFile(file._id, file.fileName)}
+                    className="
+                      flex-1 py-4 text-sm md:text-base font-black uppercase rounded-2xl
+                      bg-orange-600/90 text-white border border-orange-400/30
+                      hover:bg-orange-500 hover:border-orange-300/50
+                      hover:shadow-orange-900/50 transition-all duration-300
+                      shadow-lg shadow-orange-900/40 flex items-center justify-center gap-2
+                    "
+                  >
+                    Download <span className="text-xl">↗</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleDeleteFile(file._id)}
+                    className="
+                      px-5 py-4 text-lg md:text-xl font-black rounded-2xl
+                      bg-red-900/40 text-red-500 border border-red-500/30
+                      hover:bg-red-600 hover:text-white hover:border-red-500
+                      transition-all duration-300 flex items-center justify-center
+                    "
+                    title="Permanently Delete Document"
+                  >
+                    🗑️
+                  </button>
+                </div>
               </div>
             ))}
           </div>

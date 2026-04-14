@@ -6,8 +6,8 @@ import { FaDownload, FaCheckCircle } from "react-icons/fa";
 
 const SLM_NAME = "slm";
 
-// ←←← CHANGED TO QWEN 2.5 1.5B (super smart, zero safety blockages, very fast)
-const SLM_MODEL = "Qwen2.5-1.5B-Instruct-q4f16_1-MLC";
+// ←←← CHANGED TO LIGHTER MODEL FOR SMOOTH EXPERIENCE (Recommended)
+const SLM_MODEL = "Qwen2.5-0.5B-Instruct-q4f16_1-MLC"; // Much lighter & smoother
 
 export default function ModelDownloader() {
   const [slmDownloaded, setSlmDownloaded] = useState(false);
@@ -22,10 +22,10 @@ export default function ModelDownloader() {
   async function downloadSLM() {
     setDownloading(true);
     setProgress(0);
-    setStatus("Initializing Qwen 1.5B...");
+    setStatus("Initializing Qwen 0.5B...");
 
     try {
-      toast.loading("Downloading generation model (~650 MB)...");
+      toast.loading("Downloading generation model (~250 MB)..."); // Smaller size
 
       const { CreateWebWorkerMLCEngine } = await import("@mlc-ai/web-llm");
 
@@ -45,7 +45,7 @@ export default function ModelDownloader() {
 
       await saveModelBlobs(SLM_NAME, []);
       setSlmDownloaded(true);
-      toast.success("Generation model ready");
+      toast.success("Generation model ready (much smoother now)");
     } catch (err) {
       console.error(err);
       toast.error("Failed to download model: " + err.message);
@@ -73,9 +73,9 @@ export default function ModelDownloader() {
               Vault AI is Ready
             </h3>
             <p className="text-gray-300 text-sm text-center leading-relaxed">
-              Qwen 1.5B is securely cached in your browser.
+              Qwen 0.5B is securely cached in your browser.
               <br />
-              Your documents never leave your device.
+              Much smoother generation • Your documents never leave your device.
             </p>
           </div>
         ) : (
@@ -84,7 +84,7 @@ export default function ModelDownloader() {
             disabled={downloading}
             className="w-full py-4 bg-orange-600 hover:bg-orange-500 rounded-2xl font-bold flex items-center justify-center gap-3 disabled:opacity-50"
           >
-            <FaDownload /> Download Generation Model (~650 MB)
+            <FaDownload /> Download Generation Model (~250 MB)
           </button>
         )}
       </div>

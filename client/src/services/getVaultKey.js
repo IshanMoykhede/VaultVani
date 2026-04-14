@@ -3,16 +3,18 @@ import axios from "axios";
 import { derivePBKDF2Key, decryptData } from "./CryptoServices";
 import { toast } from "react-toastify";
 
-const unlockVaultKey = async (userId) => {
+const unlockVaultKey = async (userId, password) => {
+  if (!password) {
+    console.error("Unlock attempted without password");
+    return null;
+  }
+  
   const encryptedRes = await axios.get(
     `http://localhost:8000/api/auth/vault-key/${userId}`,
     { withCredentials: true },
   );
 
   const { encryptedVaultKey, iv, salt } = encryptedRes.data;
-
-  const password = prompt("Enter your password to unlock the vault");
-  if (!password) return null;
 
   const derivedKey = await derivePBKDF2Key(password, new Uint8Array(salt));
 

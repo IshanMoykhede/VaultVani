@@ -5,6 +5,7 @@ import {
   downloadEncryptedFile,
   getMyDocuments,
   uploadEncryptedDocument,
+  deleteDocument,
 } from "../controllers/file.controllers.js";
 const fileRouter = express.Router();
 
@@ -20,4 +21,8 @@ fileRouter.get("/my-documents", auth, getMyDocuments);
 
 // Download encrypted file (for view/decrypt on frontend)
 fileRouter.get("/download/:id", auth, downloadEncryptedFile);
+
+// Secure cascading deletions seamlessly 
+fileRouter.delete("/delete/:id", auth, deleteDocument);
+
 export default fileRouter;

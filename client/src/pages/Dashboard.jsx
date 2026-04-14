@@ -60,8 +60,8 @@ export default function Dashboard() {
                 </div>
 
                 <p className="text-lg text-gray-300 max-w-lg leading-relaxed">
-                  Your encrypted vault is waiting. Local intelligence activates
-                  once models are fully loaded.
+                  Your secure vault is ready!
+                  Once the models finish loading, your intelligent features will start working.
                 </p>
               </div>
 

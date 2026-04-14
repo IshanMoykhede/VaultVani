@@ -7,6 +7,7 @@ import cors from "cors";
 import multer from "multer";
 import fileRouter from "./router/files.router.js";
 import folderRouter from "./router/folder.router.js";
+import chunkRouter from "./router/chunk.router.js";
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use("/api/auth", authRouter);
 app.use("/api/files", fileRouter);
 app.use("/api/folder", folderRouter);
+app.use("/api/chunks", chunkRouter);
 
 const PORT = process.env.PORT || 5000;
 

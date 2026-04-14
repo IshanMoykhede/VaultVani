@@ -5,7 +5,6 @@ import {
   addFolder,
   getFolders,
   addDocument,
-  bulkAddEncryptedChunks,
 } from "../services/db";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -33,6 +32,9 @@ export default function UploadDocument() {
   const [newFolderName, setNewFolderName] = useState("");
   const fileInputRef = useRef(null);
   const [userFolders, setUserFolders] = useState([]);
+  const [showScannedModal, setShowScannedModal] = useState(false);
+  const [customFileName, setCustomFileName] = useState("");
+  const [isEditingName, setIsEditingName] = useState(false);
 
   useEffect(() => {
     const verifyRoot = async () => {
@@ -82,7 +84,9 @@ export default function UploadDocument() {
       return;
     }
     setSelectedFile(file);
+    setCustomFileName(file.name.replace(/\.pdf$/i, ""));
     setError("");
+    setIsEditingName(false);
   };
 
   const handleCreateFolder = async () => {
@@ -132,62 +136,140 @@ export default function UploadDocument() {
         .promise;
       const fullText = await extractStructuredText(pdf);
 
+      if (fullText.trim().length < 50) {
+        setLoading(false);
+        setShowScannedModal(true);
+        return;
+      }
+
       setStatus("Chunking content...");
       setProgress(20);
       const chunks = chunkText(fullText);
 
+      await finishUploadPipeline(chunks);
+    } catch (err) {
+      console.error(err);
+      toast.error("Upload failed – check console");
+      setError("Upload failed: " + err.message);
+      setLoading(false);
+      setTimeout(() => setProgress(0), 1000);
+    }
+  };
+
+  const handleAiAssist = async () => {
+    setShowScannedModal(false);
+    setLoading(true);
+    setError("");
+    setStatus("Sending to AI Server (It might take a minute)...");
+    setProgress(15);
+    
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      
+      const res = await axios.post("http://localhost:8001/api/ocr", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      
+      const aiCleanedText = res.data.cleaned_text;
+      
+      if (!aiCleanedText || aiCleanedText.trim().length === 0) {
+        toast.error("AI could not extract readable text. Storing without index.");
+        return await finishUploadPipeline([]);
+      }
+      
+      console.log("%c=== GROK OCR OUTPUT ===", "color: #a855f7; font-weight: bold;");
+      console.log(aiCleanedText);
+      console.log("%c=======================", "color: #a855f7; font-weight: bold;");
+
+      setStatus("Chunking AI contextualized text...");
+      setProgress(30);
+      const chunks = chunkText(aiCleanedText);
+      
+      await finishUploadPipeline(chunks);
+    } catch (err) {
+      console.error("AI Error:", err);
+      toast.error("AI Assistance failed. Continuing without AI.");
+      await finishUploadPipeline([]);
+    }
+  };
+
+  const handleStoreWithoutAi = async () => {
+    setShowScannedModal(false);
+    setLoading(true);
+    setError("");
+    setStatus("Bypassing AI...");
+    setProgress(20);
+    try {
+        await finishUploadPipeline([]);
+    } catch(err) {
+        console.error(err);
+        toast.error("Upload failed – check console");
+        setError("Upload failed: " + err.message);
+        setLoading(false);
+        setTimeout(() => setProgress(0), 1000);
+    }
+  };
+
+  const finishUploadPipeline = async (chunks) => {
+    try {
+      const finalFileName = customFileName.trim() ? `${customFileName.trim()}.pdf` : selectedFile.name;
+      const fileDisplayName = customFileName.trim() || selectedFile.name.replace(/\.pdf$/i, "");
+      
+      const enrichedChunks = chunks.map(chunk => `[Document: ${fileDisplayName}]\n${chunk}`);
+
       // ─────────────────────────────────────────────────────
       // ── DEBUG: PRINT CREATED CHUNKS ──────────────────────
-      console.log(
-        "%c=== RAG CHUNK REPORT ===",
-        "color: #fb923c; font-weight: bold; font-size: 14px;",
-      );
-      console.log(`Total Text Length: ${fullText.length} characters`);
-      console.log(`Total Chunks Generated: ${chunks.length}`);
+      if (enrichedChunks.length > 0) {
+        console.log(
+          "%c=== RAG CHUNK REPORT ===",
+          "color: #fb923c; font-weight: bold; font-size: 14px;",
+        );
+        console.log(`Total Chunks Generated: ${enrichedChunks.length}`);
 
-      chunks.forEach((chunk, index) => {
-        console.groupCollapsed(`Chunk ${index + 1} (${chunk.length} chars)`);
-        console.log("%cPreview:", "color: #9ca3af; font-style: italic;");
-        console.log(chunk);
-
-        // Validation check for Markdown Tables
-        if (chunk.includes("|") && chunk.includes("-|-")) {
-          console.log("%c[Table Detected in this chunk]", "color: #4ade80;");
-        }
-        console.groupEnd();
-      });
-      console.log(
-        "%c========================",
-        "color: #fb923c; font-weight: bold;",
-      );
+        enrichedChunks.forEach((chunk, index) => {
+          console.groupCollapsed(`Chunk ${index + 1} (${chunk.length} chars)`);
+          console.log("%cPreview:", "color: #9ca3af; font-style: italic;");
+          console.log(chunk);
+          if (chunk.includes("|") && chunk.includes("-|-")) {
+            console.log("%c[Table Detected in this chunk]", "color: #4ade80;");
+          }
+          console.groupEnd();
+        });
+        console.log(
+          "%c========================",
+          "color: #fb923c; font-weight: bold;",
+        );
+      }
       // ─────────────────────────────────────────────────────
 
-      setStatus("Generating embeddings...");
-      setProgress(30);
+      let embeddedChunks = [];
+      let encryptedChunks = [];
 
-      // Note: your ragUtils generateEmbeddings expects text chunks,
-      // but return objects {text, embedding}.
-      const embeddedChunks = await generateEmbeddings(chunks);
+      if (enrichedChunks.length > 0) {
+        setStatus("Generating embeddings...");
+        setProgress(30);
+        embeddedChunks = await generateEmbeddings(enrichedChunks);
 
-      if (embeddedChunks.length === 0) {
-        throw new Error("No embeddings generated");
-      }
+        if (embeddedChunks.length === 0) {
+           throw new Error("No embeddings generated");
+        }
 
-      setStatus("Encrypting chunks...");
-      setProgress(50);
-      const encryptedChunks = [];
-      for (let i = 0; i < embeddedChunks.length; i++) {
-        const text = embeddedChunks[i].text;
-        const { encrypted, iv } = await encryptData(
-          vaultKey,
-          new TextEncoder().encode(text),
-        );
-        encryptedChunks.push({
-          chunkIdx: i,
-          encryptedText: encrypted,
-          iv: Array.from(iv),
-          embedding: embeddedChunks[i].embedding,
-        });
+        setStatus("Encrypting chunks...");
+        setProgress(50);
+        for (let i = 0; i < embeddedChunks.length; i++) {
+          const text = embeddedChunks[i].text;
+          const { encrypted, iv } = await encryptData(
+            vaultKey,
+            new TextEncoder().encode(text),
+          );
+          encryptedChunks.push({
+            chunkIdx: i,
+            encryptedText: Array.from(encrypted),
+            iv: Array.from(iv),
+            embedding: embeddedChunks[i].embedding,
+          });
+        }
       }
 
       setStatus("Encrypting original file...");
@@ -204,7 +286,7 @@ export default function UploadDocument() {
       });
 
       formData.append("file", encryptedBlob);
-      formData.append("fileName", selectedFile.name);
+      formData.append("fileName", finalFileName);
       formData.append("fileSize", selectedFile.size);
       formData.append("mimeType", selectedFile.type);
       formData.append("iv", JSON.stringify(Array.from(fileIv)));
@@ -226,29 +308,36 @@ export default function UploadDocument() {
       setStatus("Saving metadata...");
       setProgress(85);
       const docId = await addDocument({
-        fileName: selectedFile.name,
+        fileName: finalFileName,
         folderId: selectedFolder?.id || null, // Using local ID for IndexedDB
         fileSize: selectedFile.size,
         uploadDate: new Date().toISOString(),
       });
 
-      setStatus("Saving encrypted chunks...");
-      setProgress(90);
-      const chunksToSave = encryptedChunks.map((c) => ({
-        ...c,
-        documentId: docId,
-      }));
-      await bulkAddEncryptedChunks(chunksToSave);
+      if (encryptedChunks.length > 0) {
+        setStatus("Saving AI indices to Cloud...");
+        setProgress(90);
+        const chunksToSave = encryptedChunks.map((c) => ({
+          ...c,
+          documentId: backendFileId,
+        }));
+        
+        await axios.post(
+          "http://localhost:8000/api/chunks/upload",
+          { chunks: chunksToSave },
+          { withCredentials: true }
+        );
+      }
 
       setProgress(100);
       setStatus("Upload complete");
-      toast.success("Document secured and saved");
+      toast.success(chunks.length > 0 ? "Document secured and indexed" : "Document secured (No AI Indexing)");
 
       if (fileInputRef.current) fileInputRef.current.value = "";
       setSelectedFile(null);
     } catch (err) {
       console.error(err);
-      toast.error("Upload failed – check console");
+      toast.error("Upload process failed – check console");
       setError("Upload failed: " + err.message);
     } finally {
       setLoading(false);
@@ -303,7 +392,41 @@ export default function UploadDocument() {
                 <h3 className="text-2xl font-bold text-orange-300 mb-4">
                   Selected Document
                 </h3>
-                <p className="text-xl font-medium mb-2">{selectedFile.name}</p>
+                
+                <div className="flex items-center gap-3 mb-2">
+                  {isEditingName ? (
+                    <div className="flex items-center w-full max-w-sm">
+                      <input
+                        type="text"
+                        value={customFileName}
+                        onChange={(e) => setCustomFileName(e.target.value)}
+                        className="w-full bg-gray-900/50 border border-orange-500/50 rounded-l-lg px-4 py-2 text-xl font-medium focus:outline-none focus:border-orange-400 text-white"
+                        placeholder="Document Name"
+                        autoFocus
+                      />
+                      <button 
+                        onClick={() => setIsEditingName(false)}
+                        className="bg-orange-600 hover:bg-orange-500 text-white px-4 py-2 rounded-r-lg border border-orange-500/50 font-bold transition-colors"
+                      >
+                         Save
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-xl font-medium truncate max-w-sm" title={customFileName}>
+                        {customFileName || "Untitled"}<span className="text-gray-400">.pdf</span>
+                      </p>
+                      <button 
+                        onClick={() => setIsEditingName(true)}
+                        className="text-gray-400 hover:text-orange-400 p-1 rounded-md transition-colors"
+                        title="Rename file"
+                      >
+                         ✏️
+                      </button>
+                    </>
+                  )}
+                </div>
+
                 <p className="text-gray-400 mb-6">
                   {(selectedFile.size / 1024 / 1024).toFixed(2)} MB • PDF
                 </p>
@@ -399,6 +522,50 @@ export default function UploadDocument() {
               Your file is encrypted locally before leaving your device
             </p>
           </div>
+
+          {/* Scanned PDF Prompt Modal */}
+          {showScannedModal && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-6">
+              <div className="bg-gray-900/60 backdrop-blur-3xl border border-white/10 rounded-3xl p-8 md:p-12 max-w-2xl w-full shadow-2xl shadow-black/80 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-600 via-orange-500 to-yellow-400"></div>
+                <h3 className="text-3xl font-black uppercase text-orange-400 mb-4 text-center">
+                  Scanned Document Detected
+                </h3>
+                <p className="text-gray-300 text-lg text-center mb-10">
+                  This file contains no extractable text. Would you like our Local AI backend to attempt to read and structure it via OCR, or skip AI indexing and just store it securely?
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <button
+                     onClick={handleAiAssist}
+                     disabled={loading}
+                     className="flex flex-col items-center justify-center p-6 border border-purple-500/40 bg-purple-900/20 hover:bg-purple-800/40 rounded-2xl transition-all duration-300 hover:shadow-lg hover:shadow-purple-900/50 disabled:opacity-50"
+                   >
+                     <span className="text-4xl mb-3">🤖</span>
+                     <span className="text-xl font-bold text-white mb-2">Option A</span>
+                     <span className="text-sm text-purple-200">Allow AI to structure (OCR)</span>
+                   </button>
+                   <button
+                     onClick={handleStoreWithoutAi}
+                     disabled={loading}
+                     className="flex flex-col items-center justify-center p-6 border border-gray-600/40 bg-gray-800/40 hover:bg-gray-700/60 rounded-2xl transition-all duration-300 hover:shadow-lg hover:shadow-gray-900/50 disabled:opacity-50"
+                   >
+                     <span className="text-4xl mb-3">🔒</span>
+                     <span className="text-xl font-bold text-white mb-2">Option B</span>
+                     <span className="text-sm text-gray-300">Store Securely without AI</span>
+                   </button>
+                </div>
+                
+                <div className="flex justify-center mt-8">
+                  <button
+                    onClick={() => setShowScannedModal(false)}
+                    className="text-lg font-medium text-gray-500 hover:text-gray-300 transition-colors"
+                  >
+                    Cancel Upload
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Folder Selection Modal */}
           {showFolderModal && (

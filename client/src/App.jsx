@@ -18,6 +18,7 @@ import RAGDemo from "./pages/RAGDemo.jsx";
 import Browse from "./pages/Browse.jsx";
 import Files from "./pages/Files.jsx";
 import { Toaster } from "react-hot-toast";
+import TestBrowserOCR from "./pages/TestBrowserOcr.jsx";
 // import BrowseDocuments from "./pages/BrowseDocuments.jsx";
 // import AIAssistant from "./pages/AIAssistant.jsx";
 // import toast from "react-hot-toast";
@@ -73,6 +74,7 @@ const App = () => {
             </ProtectedRoutes>
           }
         />
+        <Route path="/test-ocr" element={<TestBrowserOCR />} />
       </Routes>
       <Toaster
         position="top-center"
