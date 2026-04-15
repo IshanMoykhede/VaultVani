@@ -74,12 +74,6 @@ export async function extractStructuredText(pdf) {
     });
 
     // ── STEP 1: Merge word-fragments that pdfjs splits mid-word ──
-    // PDFs from form-filling tools often split "Physics" into "Physi" + "cs"
-    // as separate text runs with the same y but slightly different x.
-    // Merge adjacent items if:
-    //   - same visual row (y within 14px)
-    //   - second item starts within 4px of where first item ends (x + width)
-    //   - neither item ends with a space (i.e. they are a broken word, not separate words)
     const merged = [];
     for (const item of items) {
       const prev = merged[merged.length - 1];
@@ -90,7 +84,6 @@ export async function extractStructuredText(pdf) {
         !prev.str.endsWith(" ") &&
         !item.str.startsWith(" ")
       ) {
-        // Glue the fragment onto the previous item
         prev.str = prev.str + item.str;
         prev.width = item.x + item.width - prev.x;
         prev.centerX = prev.x + prev.width / 2;
@@ -118,56 +111,12 @@ export async function extractStructuredText(pdf) {
     const allCenterX = items.map((i) => i.centerX).sort((a, b) => a - b);
     const columns = buildColumns(allCenterX, 50);
 
-    // ── Classify: key-value form vs grid table ──
-    const { isKeyValue } = classifyLayout(rows, columns);
-
-    if (isKeyValue) {
-      // ── KEY-VALUE MODE: emit as "Label: Value" lines ──
-      for (const row of rows) {
-        const cells = assignToCols(row, columns);
-        const filled = cells.filter((c) => c.trim().length > 0);
-        if (filled.length === 0) continue;
-        if (filled.length === 1) {
-          fullText += filled[0] + "\n";
-        } else {
-          const label = filled[0];
-          const value = filled.slice(1).join(" ").trim();
-          fullText += `${label}: ${value}\n`;
-        }
-      }
-    } else {
-      // ── GRID TABLE MODE: detect table blocks and emit markdown ──
-      let inTable = false;
-      let tableRows = [];
-
-      for (const row of rows) {
-        const cells = assignToCols(row, columns);
-        const filledCount = cells.filter((c) => c.trim().length > 0).length;
-        const isTableRow = filledCount >= 2;
-
-        if (isTableRow) {
-          inTable = true;
-          tableRows.push(cells);
-        } else {
-          if (inTable && tableRows.length >= 2) {
-            fullText += tableToMarkdown(tableRows) + "\n\n";
-            tableRows = [];
-            inTable = false;
-          } else if (inTable) {
-            fullText += tableRows[0].filter(Boolean).join("  ") + "\n";
-            tableRows = [];
-            inTable = false;
-          }
-          const rowText = cells.filter(Boolean).join("  ").trim();
-          if (rowText) fullText += rowText + "\n";
-        }
-      }
-
-      if (inTable && tableRows.length >= 2) {
-        fullText += tableToMarkdown(tableRows) + "\n\n";
-      } else if (inTable && tableRows.length === 1) {
-        fullText += tableRows[0].filter(Boolean).join("  ") + "\n";
-      }
+    // ── Always render as plain lines — no markdown tables ever ──
+    for (const row of rows) {
+      const cells = assignToCols(row, columns);
+      const filled = cells.filter((c) => c.trim().length > 0);
+      if (filled.length === 0) continue;
+      fullText += filled.join("  ").trim() + "\n";
     }
 
     fullText += "\n--- Page Break ---\n";
@@ -223,78 +172,15 @@ function assignToCols(row, columns) {
   return rowCells;
 }
 
-/**
- * Classify layout type for the page.
- *
- * Key-value heuristic:
- *   - At most 3 detected column zones, AND
- *   - 60%+ of multi-cell rows use exactly 2 distinct x-zones (label + value)
- *
- * Grid table heuristic: rows consistently use 3+ columns.
- */
-function classifyLayout(rows, columns) {
-  if (columns.length <= 2) {
-    return { isKeyValue: true };
-  }
-
-  let twoColRows = 0;
-  let threeOrMoreColRows = 0;
-
-  for (const row of rows) {
-    const xZones = new Set(row.map((cell) => Math.round(cell.x / 60)));
-    if (xZones.size === 2) twoColRows++;
-    if (xZones.size >= 3) threeOrMoreColRows++;
-  }
-
-  const total = twoColRows + threeOrMoreColRows;
-  if (total === 0) return { isKeyValue: false };
-
-  const isKeyValue = twoColRows / total >= 0.6;
-  return { isKeyValue };
-}
-
-/**
- * Convert rows into a Markdown table.
- * Strips fully empty columns before rendering.
- */
-function tableToMarkdown(rows) {
-  if (rows.length === 0) return "";
-
-  const maxCols = Math.max(...rows.map((r) => r.length));
-  const normalised = rows.map((row) => {
-    const r = [...row];
-    while (r.length < maxCols) r.push("");
-    return r;
-  });
-
-  // Drop fully-empty columns
-  const activeCols = [];
-  for (let ci = 0; ci < maxCols; ci++) {
-    if (normalised.some((r) => r[ci]?.trim().length > 0)) activeCols.push(ci);
-  }
-
-  const trimmed = normalised.map((r) => activeCols.map((ci) => r[ci] || ""));
-  const colCount = trimmed[0].length;
-  const widths = Array.from({ length: colCount }, (_, ci) =>
-    Math.max(3, ...trimmed.map((r) => (r[ci] || "").length)),
-  );
-
-  const pad = (s, w) => (s || "").padEnd(w);
-  const header = trimmed[0].map((c, i) => pad(c, widths[i])).join(" | ");
-  const sep = widths.map((w) => "-".repeat(w)).join("-|-");
-  const body = trimmed
-    .slice(1)
-    .map((r) => r.map((c, i) => pad(c, widths[i])).join(" | "))
-    .join("\n");
-
-  return `| ${header} |\n|-${sep}-|\n| ${body.split("\n").join(" |\n| ")} |`;
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// CHUNKING
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CHUNKING
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function chunkText(text, chunkSize = 600, overlap = 120) {
+export function chunkText(text, chunkSize = 900, overlap = 120) {
   if (!text || text.length === 0) return [];
 
   const chunks = [];
