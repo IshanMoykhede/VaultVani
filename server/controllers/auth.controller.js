@@ -110,8 +110,8 @@ const signUp = async (req, res) => {
 
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.MODE === "production",
-      sameSite: "lax",
+      secure: process.env.MODE === "Production",
+      sameSite: "none",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -189,8 +189,8 @@ const signIn = async (req, res) => {
 
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.MODE === "production",
-      sameSite: "lax",
+      secure: process.env.MODE === "Production",
+      sameSite: "none",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
