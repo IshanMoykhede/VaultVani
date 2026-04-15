@@ -27,7 +27,7 @@ export default function ForgotPassword() {
 
     try {
       const res = await axios.post(
-        "http://localhost:8000/api/auth/recovery-material",
+        `${import.meta.env.VITE_API_BASE_URL}/api/auth/recovery-material`,
         { email },
         { withCredentials: true },
       );
@@ -94,7 +94,7 @@ export default function ForgotPassword() {
       );
 
       await axios.post(
-        "http://localhost:8000/api/auth/update-vault-keys",
+        `${import.meta.env.VITE_API_BASE_URL}/api/auth/update-vault-keys`,
         {
           email,
           password: newPassword, // ← Send plain password (backend will hash it)

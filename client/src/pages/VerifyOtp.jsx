@@ -16,7 +16,7 @@ function VerifyOTP() {
     e.preventDefault();
     try {
       const res = await axios.post(
-        "http://localhost:8000/api/auth/verify-reset-otp",
+        `${import.meta.env.VITE_API_BASE_URL}/api/auth/verify-reset-otp`,
         { email, otp },
       );
       toast.success(res.data.message);

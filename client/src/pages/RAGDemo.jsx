@@ -67,7 +67,7 @@ export default function RAGDemo() {
     const loadVaultChunks = async () => {
       log("1. Loading Vault Chunks from Backend", null, "step");
       try {
-        const res = await axios.get("http://localhost:8000/api/chunks", {
+        const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/chunks`, {
           withCredentials: true,
         });
 

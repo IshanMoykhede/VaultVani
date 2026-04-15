@@ -25,7 +25,7 @@ function SignUp() {
 
     try {
       const res = await axios.post(
-        "http://localhost:8000/api/auth/signUp",
+        `${import.meta.env.VITE_API_BASE_URL}/api/auth/signUp`,
         { userName, email, password },
         { withCredentials: true },
       );
@@ -69,7 +69,7 @@ function SignUp() {
 
       // Send crypto setup to backend
       await axios.post(
-        "http://localhost:8000/api/auth/crypto/setup",
+        `${import.meta.env.VITE_API_BASE_URL}/api/auth/crypto/setup`,
         {
           salt: Array.from(salt),
           encryptedVaultKey: Array.from(encryptedVaultKey),

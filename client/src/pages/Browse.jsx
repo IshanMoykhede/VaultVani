@@ -16,7 +16,7 @@ export default function Browse() {
     const fetchFolders = async () => {
       try {
         const res = await axios.get(
-          "http://localhost:8000/api/folder/get-folders",
+          `${import.meta.env.VITE_API_BASE_URL}/api/folder/get-folders`,
           {
             withCredentials: true,
           },

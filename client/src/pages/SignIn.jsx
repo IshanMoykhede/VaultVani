@@ -20,7 +20,7 @@ function SignIn() {
 
     try {
       const res = await axios.post(
-        "http://localhost:8000/api/auth/signIn",
+        `${import.meta.env.VITE_API_BASE_URL}/api/auth/signIn`,
         { email, password },
         { withCredentials: true },
       );

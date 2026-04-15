@@ -19,7 +19,7 @@ export default function Files() {
     const fetchFiles = async () => {
       try {
         const res = await axios.get(
-          `http://localhost:8000/api/files/my-documents?folderId=${folderId}`,
+          `${import.meta.env.VITE_API_BASE_URL}/api/files/my-documents?folderId=${folderId}`,
           { withCredentials: true },
         );
         setFiles(res.data.documents || []);
@@ -46,7 +46,7 @@ export default function Files() {
       }
 
       const res = await axios.get(
-        `http://localhost:8000/api/files/download/${fileId}`,
+        `${import.meta.env.VITE_API_BASE_URL}/api/files/download/${fileId}`,
         {
           withCredentials: true,
           responseType: "arraybuffer",
@@ -80,7 +80,7 @@ export default function Files() {
     if (!window.confirm("Are you absolutely sure you want to permanently delete this document and its AI memory indices globally?")) return;
     
     try {
-      await axios.delete(`http://localhost:8000/api/files/delete/${fileId}`, {
+      await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/api/files/delete/${fileId}`, {
         withCredentials: true,
       });
       // Splice entirely from arrays preventing refreshes natively

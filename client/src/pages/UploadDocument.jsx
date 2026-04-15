@@ -40,7 +40,7 @@ export default function UploadDocument() {
     const verifyRoot = async () => {
       try {
         let res = await axios.get(
-          "http://localhost:8000/api/folder/get-folders",
+          `${import.meta.env.VITE_API_BASE_URL}/api/folder/get-folders`,
           {
             withCredentials: true,
           },
@@ -51,7 +51,7 @@ export default function UploadDocument() {
 
         if (!hasRoot) {
           res = await axios.post(
-            "http://localhost:8000/api/folder/create-folder",
+            `${import.meta.env.VITE_API_BASE_URL}/api/folder/create-folder`,
             { folderName: "Root" },
             { withCredentials: true },
           );
@@ -93,7 +93,7 @@ export default function UploadDocument() {
     if (!newFolderName.trim()) return;
     try {
       const res = await axios.post(
-        "http://localhost:8000/api/folder/create-folder",
+        `${import.meta.env.VITE_API_BASE_URL}/api/folder/create-folder`,
         { folderName: newFolderName.trim() },
         { withCredentials: true },
       );
@@ -295,7 +295,7 @@ export default function UploadDocument() {
       setStatus("Uploading to server...");
       setProgress(75);
       const uploadRes = await axios.post(
-        "http://localhost:8000/api/files/upload-encrypted-file",
+        `${import.meta.env.VITE_API_BASE_URL}/api/files/upload-encrypted-file`,
         formData,
         {
           withCredentials: true,
@@ -322,11 +322,11 @@ export default function UploadDocument() {
           documentId: backendFileId,
         }));
         
-        await axios.post(
-          "http://localhost:8000/api/chunks/upload",
-          { chunks: chunksToSave },
-          { withCredentials: true }
-        );
+      await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL}/api/chunks/upload`,
+        { chunks: chunksToSave },
+        { withCredentials: true }
+      );
       }
 
       setProgress(100);

@@ -16,7 +16,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const res = await axios.get("http://localhost:8000/api/auth/get-user", {
+        const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/auth/get-user`, {
           withCredentials: true,
         });
 
@@ -42,7 +42,7 @@ export const AuthProvider = ({ children }) => {
   // const unlockVaultKey = async (userId) => {
   //   try {
   //     const encryptedRes = await axios.get(
-  //       `http://localhost:8000/api/auth/vault-key/${userId}`,
+  //       `${import.meta.env.VITE_API_BASE_URL}/api/auth/vault-key/${userId}`,
   //       {
   //         withCredentials: true,
   //       },

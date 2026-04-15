@@ -16,7 +16,7 @@ function ResetPassword() {
     e.preventDefault();
     try {
       const res = await axios.post(
-        "http://localhost:8000/api/auth/setNewPass",
+        `${import.meta.env.VITE_API_BASE_URL}/api/auth/setNewPass`,
         { resetToken: token, password },
       );
       toast.success(res.data.message);
