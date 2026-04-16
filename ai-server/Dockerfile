@@ -1,6 +1,6 @@
 FROM python:3.12-slim-bookworm
 
-# Install system dependencies required by PyMuPDF and EasyOCR
+# Install system dependencies for PyMuPDF + EasyOCR
 RUN apt-get update && apt-get install -y \
     g++ \
     make \
@@ -14,18 +14,16 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy requirements first (better caching)
-COPY ai-server/requirements.txt .
+# Copy requirements first
+COPY requirements.txt .
 
-# Upgrade pip and install dependencies
+# Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the ai-server code
-COPY ai-server/ .
+# Copy the rest of the application code
+COPY . .
 
-# Expose the port FastAPI will run on
 EXPOSE 8000
 
-# Start the app with uvicorn
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
