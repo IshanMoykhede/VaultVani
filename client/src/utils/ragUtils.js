@@ -180,7 +180,7 @@ function assignToCols(row, columns) {
 // CHUNKING
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function chunkText(text, chunkSize = 900, overlap = 120) {
+export function chunkText(text, chunkSize = 200, overlap = 30) {
   if (!text || text.length === 0) return [];
 
   const chunks = [];
