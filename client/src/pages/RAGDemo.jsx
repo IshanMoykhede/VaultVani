@@ -192,6 +192,7 @@ export default function RAGDemo() {
           );
         },
         setError,
+        6, // Retrieve top 6 for re-ranking
       );
 
       if (retrievedChunks.length === 0) {
@@ -208,16 +209,15 @@ export default function RAGDemo() {
         return;
       }
 
-      // ==================== DECRYPTION - FULL TEXT VISIBLE ====================
+      // ==================== DECRYPTION & RE-RANKING ====================
       log(
-        "Starting Decryption - Full Chunk Text Will Be Visible",
-        {
-          chunksToDecrypt: retrievedChunks.length,
-        },
+        "Starting Decryption & Keyword Re-ranking",
+        { chunksToProcess: retrievedChunks.length },
         "step",
       );
 
       const decryptedTop = [];
+      const queryKeywords = userQuery.toLowerCase().split(/\W+/).filter(w => w.length > 3);
 
       for (let i = 0; i < retrievedChunks.length; i++) {
         const match = retrievedChunks[i];
@@ -233,17 +233,23 @@ export default function RAGDemo() {
           );
 
           const plainText = new TextDecoder().decode(decryptedBuffer);
+          
+          // Re-calculate score with keyword boost now that we have the text
+          let finalScore = match.score;
+          const textLower = plainText.toLowerCase();
+          queryKeywords.forEach(word => {
+            if (textLower.includes(word)) finalScore += 0.1; // 10% boost for matches
+          });
 
-          decryptedTop.push({ text: plainText, score: match.score });
+          decryptedTop.push({ text: plainText, score: finalScore });
 
-          // 🔥 FULL DECRYPTED CHUNK TEXT IS NOW FULLY VISIBLE
           log(
-            `✅ FULL DECRYPTED CHUNK ${i + 1}`,
+            `✅ PROCESSED CHUNK ${i + 1}`,
             {
               chunkId: match.id,
-              relevanceScore: match.score ? match.score.toFixed(4) : "N/A",
-              fullDecryptedText: plainText, // ← Entire text is shown
-              textLength: plainText.length,
+              originalScore: match.score.toFixed(4),
+              finalScore: finalScore.toFixed(4),
+              textPreview: plainText.substring(0, 100) + "...",
             },
             "success",
           );
@@ -252,15 +258,20 @@ export default function RAGDemo() {
         }
       }
 
+      // Final sort by boosted score and take top 3
+      decryptedTop.sort((a, b) => b.score - a.score);
+      const top3Decrypted = decryptedTop.slice(0, 3);
+
       log(
-        "Decryption Completed",
+        "Re-ranking Completed",
         {
-          totalDecryptedChunks: decryptedTop.length,
+          totalProcessed: decryptedTop.length,
+          topScore: top3Decrypted[0]?.score?.toFixed(4),
         },
         "success",
       );
 
-      if (decryptedTop.length === 0) {
+      if (top3Decrypted.length === 0) {
         throw new Error("Decryption failed for all chunks");
       }
 
@@ -269,7 +280,7 @@ export default function RAGDemo() {
 
       await generateAnswer(
         userQuery,
-        decryptedTop,
+        top3Decrypted,
         [],
         setIsGenerating,
         (answer) => {

@@ -49,9 +49,10 @@ async function getEmbedder() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function extractStructuredText(pdf) {
-  let fullText = "";
+  const pages = [];
 
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    let pageText = "";
     const page = await pdf.getPage(pageNum);
     const content = await page.getTextContent();
     const viewport = page.getViewport({ scale: 1 });
@@ -116,13 +117,13 @@ export async function extractStructuredText(pdf) {
       const cells = assignToCols(row, columns);
       const filled = cells.filter((c) => c.trim().length > 0);
       if (filled.length === 0) continue;
-      fullText += filled.join("  ").trim() + "\n";
+      pageText += filled.join("  ").trim() + "\n";
     }
 
-    fullText += "\n--- Page Break ---\n";
+    pages.push({ text: pageText.trim(), page: pageNum });
   }
 
-  return fullText.trim();
+  return pages;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -176,29 +177,34 @@ function assignToCols(row, columns) {
 // CHUNKING
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CHUNKING
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function chunkText(text, chunkSize = 200, overlap = 30) {
-  if (!text || text.length === 0) return [];
+/**
+ * Chunk text while injecting metadata (filename and page).
+ * @param {Array<{text: string, page: number}>} pagesOrText - Array of page objects or raw text
+ * @param {string} fileName - Name of the file for metadata injection
+ * @param {number} chunkSize - Max characters per chunk (approx 800)
+ * @param {number} overlap - Overlap size (approx 150)
+ */
+export function chunkText(pagesOrText, fileName = "Unknown", chunkSize = 800, overlap = 150) {
+  if (!pagesOrText || pagesOrText.length === 0) return [];
 
   const chunks = [];
-  let start = 0;
+  
+  // Normalize input: if it's a string, convert to single-page array
+  const pages = typeof pagesOrText === "string" 
+    ? [{ text: pagesOrText, page: 1 }] 
+    : pagesOrText;
 
-  while (start < text.length) {
-    let end = Math.min(start + chunkSize, text.length);
+  for (const pageObj of pages) {
+    const text = pageObj.text;
+    const pageNum = pageObj.page;
+    let start = 0;
 
-    if (end < text.length) {
-      const slice = text.slice(start, end);
+    while (start < text.length) {
+      let end = Math.min(start + chunkSize, text.length);
 
-      // Never split inside a markdown table
-      const tableStart = slice.lastIndexOf("\n|");
-      const tableEnd = slice.lastIndexOf("\n\n");
-      if (tableStart > tableEnd && tableStart > chunkSize * 0.5) {
-        const safeCut = slice.lastIndexOf("\n\n", tableStart);
-        end = safeCut > 0 ? start + safeCut + 2 : start + chunkSize;
-      } else {
+      if (end < text.length) {
+        const slice = text.slice(start, end);
+
         // Break at newline > period > space — never mid-word
         const lastNewline = slice.lastIndexOf("\n\n");
         const lastSingleNewline = slice.lastIndexOf("\n");
@@ -214,19 +220,20 @@ export function chunkText(text, chunkSize = 200, overlap = 30) {
 
         if (breakPoint > 0) end = start + breakPoint;
       }
+
+      const rawChunk = text.slice(start, end).trim();
+      
+      if (rawChunk.length > 20) {
+        // Inject metadata at the start of each chunk
+        const metadata = `[Document: ${fileName}, Page: ${pageNum}]\n`;
+        chunks.push(metadata + rawChunk);
+      }
+
+      start = end - overlap;
+      if (start < 0) start = 0;
+
+      if (end >= text.length) break;
     }
-
-    const chunk = text.slice(start, end).trim();
-    if (chunk.length > 20) chunks.push(chunk);
-
-    // Overlap: next chunk starts (end - overlap) so context carries over.
-    // BUG WAS HERE: the old break condition fired before the last chunk
-    // was added when end >= text.length, skipping the tail of the document.
-    start = end - overlap;
-    if (start < 0) start = 0;
-
-    // Only stop when we've consumed the entire text
-    if (end >= text.length) break;
   }
 
   return chunks;
@@ -310,29 +317,50 @@ export async function retrieveTopChunks(
     const embedder = await getEmbedder();
     const output = await embedder(query, { pooling: "mean", normalize: true });
     const queryEmbedding = Array.from(output.data ?? []);
+    
+    // Extract keywords for hybrid boosting (simple split, remove common words)
+    const keywords = query.toLowerCase()
+      .split(/\W+/)
+      .filter(w => w.length > 3); // Only words > 3 chars
+
     const scored = indexedItems
       .map((item) => {
         if (!item.embedding || item.embedding.length !== queryEmbedding.length)
           return null;
-        const score = cosineSimilarity(queryEmbedding, item.embedding);
-        return { id: item.id, score: isNaN(score) ? 0 : score };
+        
+        // 1. Vector Similarity
+        let score = cosineSimilarity(queryEmbedding, item.embedding);
+        if (isNaN(score)) score = 0;
+
+        // 2. Keyword Boosting (Hybrid Search)
+        // If a chunk contains a query keyword, boost its score
+        if (item.text) {
+          const chunkTextLower = item.text.toLowerCase();
+          let boost = 0;
+          keywords.forEach(word => {
+            if (chunkTextLower.includes(word)) {
+              boost += 0.05; // 5% boost per keyword match
+            }
+          });
+          score += boost;
+        }
+
+        return { id: item.id, score, text: item.text };
       })
       .filter(Boolean);
+
     if (scored.length === 0) {
       setError("No valid embeddings to compare.");
       return;
     }
 
-    // Hard cap at 3 chunks — each chunk can be 400-600 chars after the new
-    // extraction, so 3 chunks = ~1500 chars which fits Gemma's context window.
-    // Also drop low-relevance chunks (score < 0.25) to avoid confusing the model.
+    // Hard cap at 3 chunks
     const MAX_CHUNKS = Math.min(topK, 3);
     const topMatches = scored
       .sort((a, b) => b.score - a.score)
       .slice(0, MAX_CHUNKS)
-      .filter((c) => c.score >= 0.25);
+      .filter((c) => c.score >= 0.25); // Lower threshold because boost helps
 
-    // Fallback: if all chunks score below 0.25, still send the single best one
     setTopChunks(topMatches.length > 0 ? topMatches : [scored[0]]);
   } catch (err) {
     console.error("Retrieval error:", err);
@@ -402,15 +430,15 @@ export async function getOrCreateEngine(onProgress) {
 // ─────────────────────────────────────────────────────────────────────────────
 // generateAnswer — Only chunks with score > 0.50 + Top 3
 // ─────────────────────────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `Answer using only the context.
+const SYSTEM_PROMPT = `You are a precise AI assistant. Answer the user's question using ONLY the provided context.
 
-1. If exact answer is found → return it clearly.
-2. If unsure → return the most relevant values (numbers, marks, percentage, etc).
-3. Do NOT return document names, headings, or labels.
-4. Do NOT blindly match keys. If values look incorrect or mismatched, say:
-   "I found this: {value}, but it may be incorrect. Please cross check and what you feel this should be correct tell that as well."
-5. If nothing useful found → "This information is not in your documents."
-6. Keep answer short. `;
+### Instructions:
+1. Use the [Document: Name, Page: X] info if you need to reference a source.
+2. If the exact answer is in the context, be concise and clear.
+3. If unsure or if the context is missing info, say: "This information is not explicitly mentioned in the provided documents."
+4. If values seem mismatched, mention it clearly.
+5. DO NOT use external knowledge.
+6. Keep answers under 100 words.`;
 
 export async function generateAnswer(
   question,
@@ -456,7 +484,7 @@ export async function generateAnswer(
       { role: "system", content: SYSTEM_PROMPT },
       {
         role: "user",
-        content: `I am sending you the two thing context and a question please find the answer from the context and according to question and then answer to me , Context:\n${context}\n\nQuestion: ${question}`,
+        content: `### Context:\n${context}\n\n### Question:\n${question}\n\n### Answer:`,
       },
     ];
 

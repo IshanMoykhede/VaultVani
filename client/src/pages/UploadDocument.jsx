@@ -134,17 +134,21 @@ export default function UploadDocument() {
       setProgress(10);
       const pdf = await pdfjsLib.getDocument(URL.createObjectURL(selectedFile))
         .promise;
-      const fullText = await extractStructuredText(pdf);
+      const extractedPages = await extractStructuredText(pdf);
+      
+      const totalLength = extractedPages.reduce((acc, p) => acc + p.text.length, 0);
 
-      if (fullText.trim().length < 50) {
+      if (totalLength < 50) {
         setLoading(false);
         setShowScannedModal(true);
         return;
       }
 
+      const fileDisplayName = customFileName.trim() || selectedFile.name.replace(/\.pdf$/i, "");
+
       setStatus("Chunking content...");
       setProgress(20);
-      const chunks = chunkText(fullText);
+      const chunks = chunkText(extractedPages, fileDisplayName);
 
       await finishUploadPipeline(chunks);
     } catch (err) {
@@ -178,13 +182,11 @@ export default function UploadDocument() {
         return await finishUploadPipeline([]);
       }
       
-      console.log("%c=== GROK OCR OUTPUT ===", "color: #a855f7; font-weight: bold;");
-      console.log(aiCleanedText);
-      console.log("%c=======================", "color: #a855f7; font-weight: bold;");
+      const fileDisplayName = customFileName.trim() || selectedFile.name.replace(/\.pdf$/i, "");
 
       setStatus("Chunking AI contextualized text...");
       setProgress(30);
-      const chunks = chunkText(aiCleanedText);
+      const chunks = chunkText(aiCleanedText, fileDisplayName);
       
       await finishUploadPipeline(chunks);
     } catch (err) {
